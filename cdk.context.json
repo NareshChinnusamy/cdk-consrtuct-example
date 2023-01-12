@@ -51,5 +51,15 @@
   "security-group:account=305251478828:region=us-east-1:securityGroupId=sg-f406fe90": {
     "securityGroupId": "sg-f406fe90",
     "allowAllOutbound": true
+  },
+  "load-balancer:account=305251478828:loadBalancerArn=arn$:aws:elasticloadbalancing:us-east-1:305251478828:loadbalancer/app/Outlinewikilb/d7d9340dc5f87faf:loadBalancerType=application:region=us-east-1": {
+    "loadBalancerArn": "arn:aws:elasticloadbalancing:us-east-1:305251478828:loadbalancer/app/Outlinewikilb/d7d9340dc5f87faf",
+    "loadBalancerCanonicalHostedZoneId": "Z35SXDOTRQ7X7K",
+    "loadBalancerDnsName": "Outlinewikilb-1594738312.us-east-1.elb.amazonaws.com",
+    "vpcId": "vpc-535bd136",
+    "securityGroupIds": [
+      "sg-f406fe90"
+    ],
+    "ipAddressType": "ipv4"
   }
 }

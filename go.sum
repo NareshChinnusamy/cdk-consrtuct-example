@@ -1,7 +1,5 @@
 github.com/Masterminds/semver/v3 v3.2.0 h1:3MEsd0SM6jqZojhjLWWeBY+Kcjy9i6MQAeY7YgDP83g=
 github.com/Masterminds/semver/v3 v3.2.0/go.mod h1:qvl/7zhW3nngYb5+80sSMF+FG2BjYrf8m9wsX0PNOMQ=
-github.com/NareshChinnusamy/go-module v1.0.0 h1:doQ+A1SXUc5awYVedjVavRqMZ0eFaPgiK9f/UDazyN0=
-github.com/NareshChinnusamy/go-module v1.0.0/go.mod h1:9yVOau2HRn01qCnu1CuqgIXm/8AdhhvqwU6zPgDyxqw=
 github.com/aws/aws-cdk-go/awscdk/v2 v2.59.0 h1:3s5RSXLarE7wgDYDidQ3IkCYg2XQ+15JahNEHeYEmQM=
 github.com/aws/aws-cdk-go/awscdk/v2 v2.59.0/go.mod h1:C6aU5w7MABoOb+uFDW4DoQuL4bwkE56+AW4G6BYHO4k=
 github.com/aws/constructs-go/constructs/v10 v10.1.214 h1:XEba4zzy3mEjpkl1uox7IbLNiV1iKtky5ob38gk25yQ=
