@@ -70,6 +70,7 @@ func clusterStack(scope constructs.Construct, id string, props *CdkConsrtuctStac
 			MaxCapacity:          jsii.Number(2),
 			SshKeyName:           jsii.String("demo-key-pair"),
 			UserData:             jsii.String("demo-ssh"),
+			CapacityProviderName: jsii.String("DemoAsgCapacityProvider"),
 		}, {
 			AutoScalingGroupName: jsii.String("Demo"),
 			InstanceClass:        awsec2.InstanceClass_BURSTABLE2,

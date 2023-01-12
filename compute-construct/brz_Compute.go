@@ -40,7 +40,7 @@ type ContainerComputeAsgCapacityProviderProps struct {
 	UserData             *string
 	InstanceClass        awsec2.InstanceClass
 	InstanceSize         awsec2.InstanceSize
-	CapacityProviderName string
+	CapacityProviderName *string
 }
 
 type ContainerComputeProps struct {
@@ -80,29 +80,31 @@ func NewContainerCompute(scope constructs.Construct, id string, props *Container
 		Vpc:                            vpc,
 	})
 
-	autoScalingGroup := awsautoscaling.NewAutoScalingGroup(this, jsii.String("AutoScalienGroup"), &awsautoscaling.AutoScalingGroupProps{
-		AutoScalingGroupName: props.AsgCapacityProviderProps[0].AutoScalingGroupName,
-		MinCapacity:          props.AsgCapacityProviderProps[0].MaxCapacity,
-		MaxCapacity:          props.AsgCapacityProviderProps[0].MaxCapacity,
-		InstanceType:         awsec2.InstanceType_Of(props.AsgCapacityProviderProps[0].InstanceClass, props.AsgCapacityProviderProps[0].InstanceSize),
-		MachineImage:         image,
-		SecurityGroup:        securityGroup,
-		UserData:             awsec2.UserData_ForLinux(&awsec2.LinuxUserDataOptions{Shebang: props.AsgCapacityProviderProps[0].UserData}),
-		VpcSubnets:           &awsec2.SubnetSelection{SubnetType: awsec2.SubnetType_PUBLIC},
-		Vpc:                  vpc,
-		KeyName:              props.AsgCapacityProviderProps[0].SshKeyName,
-	})
+	for _, asgCapacityProvider := range props.AsgCapacityProviderProps {
+		autoScalingGroup := awsautoscaling.NewAutoScalingGroup(this, jsii.String(*asgCapacityProvider.AutoScalingGroupName+"AutoScalingGroup"), &awsautoscaling.AutoScalingGroupProps{
+			AutoScalingGroupName: asgCapacityProvider.AutoScalingGroupName,
+			MinCapacity:          asgCapacityProvider.MaxCapacity,
+			MaxCapacity:          asgCapacityProvider.MaxCapacity,
+			InstanceType:         awsec2.InstanceType_Of(asgCapacityProvider.InstanceClass, asgCapacityProvider.InstanceSize),
+			MachineImage:         image,
+			SecurityGroup:        securityGroup,
+			UserData:             awsec2.UserData_ForLinux(&awsec2.LinuxUserDataOptions{Shebang: asgCapacityProvider.UserData}),
+			VpcSubnets:           &awsec2.SubnetSelection{SubnetType: awsec2.SubnetType_PUBLIC},
+			Vpc:                  vpc,
+			KeyName:              asgCapacityProvider.SshKeyName,
+		})
 
-	asgCapacityProvider := awsecs.NewAsgCapacityProvider(this, jsii.String("AsgCapacityProvider"), &awsecs.AsgCapacityProviderProps{
-		AutoScalingGroup:                   autoScalingGroup,
-		EnableManagedScaling:               jsii.Bool(true),
-		EnableManagedTerminationProtection: jsii.Bool(false),
-		TargetCapacityPercent:              jsii.Number(100),
-		CapacityProviderName:               &props.AsgCapacityProviderProps[0].CapacityProviderName,
-		CanContainersAccessInstanceRole:    jsii.Bool(true),
-	})
+		asgCapacityProvider := awsecs.NewAsgCapacityProvider(this, jsii.String(*asgCapacityProvider.AutoScalingGroupName+"AsgCapacityProvider"), &awsecs.AsgCapacityProviderProps{
+			AutoScalingGroup:                   autoScalingGroup,
+			EnableManagedScaling:               jsii.Bool(true),
+			EnableManagedTerminationProtection: jsii.Bool(false),
+			TargetCapacityPercent:              jsii.Number(100),
+			CapacityProviderName:               asgCapacityProvider.CapacityProviderName,
+			CanContainersAccessInstanceRole:    jsii.Bool(true),
+		})
 
-	cluster.AddAsgCapacityProvider(asgCapacityProvider, &awsecs.AddAutoScalingGroupCapacityOptions{})
+		cluster.AddAsgCapacityProvider(asgCapacityProvider, &awsecs.AddAutoScalingGroupCapacityOptions{})
+	}
 
 	return &containerCompute{this, cluster}
 }
