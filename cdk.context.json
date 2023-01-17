@@ -61,5 +61,9 @@
       "sg-f406fe90"
     ],
     "ipAddressType": "ipv4"
+  },
+  "security-group:account=305251478828:region=us-east-1:securityGroupId=sg-0d69523be628ee1bf": {
+    "securityGroupId": "sg-0d69523be628ee1bf",
+    "allowAllOutbound": false
   }
 }

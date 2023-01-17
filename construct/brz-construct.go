@@ -14,15 +14,12 @@ type BrzCustomProps struct {
 
 type brzStruct struct {
 	constructs.Construct
-	bucket awss3.Bucket
-	ec2    awsec2.Instance
+	ec2 awsec2.Instance
 }
 
 func BrzL3Construct(scope constructs.Construct, id string, props *BrzCustomProps) brzStruct {
 	this := constructs.NewConstruct(scope, &id)
 
-	s3 := awss3.NewBucket(this, jsii.String("BucketBrz"), &props.S3Props)
-
 	ec2Instance := awsec2.NewInstance(this, jsii.String("InstanceBrz"), &props.Ec2Props)
-	return brzStruct{this, s3, ec2Instance}
+	return brzStruct{this, ec2Instance}
 }

@@ -6,6 +6,7 @@ import (
 	"github.com/aws/aws-cdk-go/awscdk/v2/awsec2"
 	"github.com/aws/aws-cdk-go/awscdk/v2/awsecs"
 	"github.com/aws/aws-cdk-go/awscdk/v2/awselasticloadbalancingv2"
+	"github.com/aws/aws-cdk-go/awscdk/v2/awsiam"
 	"github.com/aws/aws-cdk-go/awscdk/v2/awsservicediscovery"
 	"github.com/aws/constructs-go/constructs/v10"
 	"github.com/aws/jsii-runtime-go"
@@ -18,12 +19,10 @@ type ContainerCompute interface {
 
 type InstanceClass string
 
-const InstanceClass_BURSTABLE2 InstanceClass = "BURSTABLE2"
-
 type containerCompute struct {
 	constructs.Construct
 	cluster           awsecs.ICluster
-	loadbalancer      awselasticloadbalancingv2.ApplicationLoadBalancer
+	loadbalancer      awselasticloadbalancingv2.IApplicationLoadBalancer
 	cloudmapNamespace awsservicediscovery.PrivateDnsNamespace
 	httpsListener     awselasticloadbalancingv2.ApplicationListener
 }
@@ -34,18 +33,18 @@ type ContainerComputeClusterProps struct {
 }
 
 type ContainerComputeSecurityGroupProps struct {
-	AsgGroupName                 *string
-	AsgGroupDescription          *string
-	LoadbalancerGroupName        *string
-	LoadbalancerGroupDescription *string
+	AsgSgName                 *string
+	AsgSgDescription          *string
+	LoadbalancerSgName        *string
+	LoadbalancerSgDescription *string
 }
 
 type ContainerComputeAsgCapacityProviderProps struct {
 	AutoScalingGroupName *string
 	MinCapacity          *float64
 	MaxCapacity          *float64
+	DesiredCapacity      *float64
 	SshKeyName           *string
-	UserData             *string
 	InstanceClass        awsec2.InstanceClass
 	InstanceSize         awsec2.InstanceSize
 	CapacityProviderName *string
@@ -86,19 +85,18 @@ func NewContainerCompute(scope constructs.Construct, id string, props *Container
 		Kernel:         awsec2.AmazonLinuxKernel_KERNEL5_X,
 	})
 
-	//Todo
-	asgSecurityGroup := awsec2.NewSecurityGroup(this, jsii.String("SecurityGroup"), &awsec2.SecurityGroupProps{
+	asgSecurityGroup := awsec2.NewSecurityGroup(this, jsii.String("AutoscalingSecurityGroup"), &awsec2.SecurityGroupProps{
 		AllowAllOutbound:  jsii.Bool(true),
 		Vpc:               vpc,
-		SecurityGroupName: props.SecurityGroupProps.AsgGroupName,
-		Description:       props.SecurityGroupProps.AsgGroupDescription,
+		SecurityGroupName: props.SecurityGroupProps.AsgSgName,
+		Description:       props.SecurityGroupProps.AsgSgDescription,
 	})
 
-	loadBalancerSecurityGroup := awsec2.NewSecurityGroup(this, jsii.String("SecurityGroup"), &awsec2.SecurityGroupProps{
+	loadBalancerSecurityGroup := awsec2.NewSecurityGroup(this, jsii.String("LoadbalancerSecurityGroup"), &awsec2.SecurityGroupProps{
 		AllowAllOutbound:  jsii.Bool(true),
 		Vpc:               vpc,
-		SecurityGroupName: props.SecurityGroupProps.LoadbalancerGroupName,
-		Description:       props.SecurityGroupProps.LoadbalancerGroupDescription,
+		SecurityGroupName: props.SecurityGroupProps.LoadbalancerSgName,
+		Description:       props.SecurityGroupProps.LoadbalancerSgDescription,
 	})
 
 	loadBalancerSecurityGroup.AddIngressRule(
@@ -118,8 +116,15 @@ func NewContainerCompute(scope constructs.Construct, id string, props *Container
 	asgSecurityGroup.AddIngressRule(awsec2.Peer_SecurityGroupId(jsii.String(
 		*loadBalancerSecurityGroup.SecurityGroupId()),
 		jsii.String(*awscdk.Aws_ACCOUNT_ID())),
-		awsec2.Port_Tcp(jsii.Number(80)),
-		jsii.String("Default HTTP Port"),
+		awsec2.Port_AllTraffic(),
+		jsii.String("Access all ports from loadbalancer securityGroup."),
+		jsii.Bool(false),
+	)
+
+	asgSecurityGroup.AddIngressRule(
+		awsec2.Peer_AnyIpv4(),
+		awsec2.Port_Tcp(jsii.Number(22)),
+		jsii.String("SSH access port."),
 		jsii.Bool(false),
 	)
 
@@ -130,19 +135,58 @@ func NewContainerCompute(scope constructs.Construct, id string, props *Container
 		Vpc:                            vpc,
 	})
 
+	asgPolicyDocument := awsiam.NewPolicyDocument(&awsiam.PolicyDocumentProps{
+		Statements: &[]awsiam.PolicyStatement{awsiam.NewPolicyStatement(&awsiam.PolicyStatementProps{Effect: awsiam.Effect_ALLOW,
+			Actions: &[]*string{
+				jsii.String("ec2:AttachVolume"),
+				jsii.String("ec2:CreateVolume"),
+				jsii.String("ec2:DeleteVolume"),
+				jsii.String("ec2:DescribeAvailabilityZones"),
+				jsii.String("ec2:DescribeInstances"),
+				jsii.String("ec2:DescribeVolumes"),
+				jsii.String("ec2:DescribeVolumeAttribute"),
+				jsii.String("ec2:DetachVolume"),
+				jsii.String("ec2:DescribeVolumeStatus"),
+				jsii.String("ec2:ModifyVolumeAttribute"),
+				jsii.String("ec2:DescribeTags"),
+				jsii.String("ec2:CreateTags"),
+			},
+			Resources: &[]*string{jsii.String("*")}})},
+	})
+
 	for _, asgCapacityProvider := range props.AsgCapacityProviderProps {
+		role := awsiam.NewRole(this, jsii.String("IamRole"+*asgCapacityProvider.AutoScalingGroupName), &awsiam.RoleProps{
+			Description:    jsii.String("Iam Role for ASG " + *asgCapacityProvider.AutoScalingGroupName),
+			InlinePolicies: &map[string]awsiam.PolicyDocument{"Ec2VolumeAccess": asgPolicyDocument},
+			RoleName:       jsii.String(*asgCapacityProvider.AutoScalingGroupName + "InstanceProfileRole"),
+			AssumedBy:      awsiam.NewServicePrincipal(jsii.String("ec2.amazonaws.com"), &awsiam.ServicePrincipalOpts{}),
+		})
+
 		autoScalingGroup := awsautoscaling.NewAutoScalingGroup(this, jsii.String(*asgCapacityProvider.AutoScalingGroupName+"AutoScalingGroup"), &awsautoscaling.AutoScalingGroupProps{
 			AutoScalingGroupName: asgCapacityProvider.AutoScalingGroupName,
-			MinCapacity:          asgCapacityProvider.MaxCapacity,
+			MinCapacity:          asgCapacityProvider.MinCapacity,
 			MaxCapacity:          asgCapacityProvider.MaxCapacity,
 			InstanceType:         awsec2.InstanceType_Of(asgCapacityProvider.InstanceClass, asgCapacityProvider.InstanceSize),
 			MachineImage:         image,
 			SecurityGroup:        asgSecurityGroup,
-			UserData:             awsec2.UserData_ForLinux(&awsec2.LinuxUserDataOptions{Shebang: asgCapacityProvider.UserData}),
+			UserData:             awsec2.UserData_ForLinux(&awsec2.LinuxUserDataOptions{Shebang: jsii.String("#!/bin/bash")}),
 			VpcSubnets:           &awsec2.SubnetSelection{SubnetType: awsec2.SubnetType_PUBLIC},
 			Vpc:                  vpc,
 			KeyName:              asgCapacityProvider.SshKeyName,
+			Role:                 role,
 		})
+
+		autoScalingGroup.UserData().AddCommands(
+			jsii.String("sudo yum -y update"),
+			jsii.String("sudo yum -y install wget"),
+			jsii.String("sudo touch /etc/ecs/ecs.config"),
+			jsii.String("sudo amazon-linux-extras disable docker"),
+			jsii.String("sudo amazon-linux-extras install -y ecs"),
+			jsii.String("echo \"ECS_CLUSTER="+*cluster.ClusterName()+"\" >>  /etc/ecs/ecs.config"),
+			jsii.String("echo \"ECS_AWSVPC_BLOCK_IMDS=true\" >> /etc/ecs/ecs.config"),
+			jsii.String("sudo systemctl enable --now --no-block ecs.service"),
+			jsii.String("docker plugin install rexray/ebs REXRAY_PREEMPT=true EBS_REGION="+*awscdk.Aws_REGION()+" --grant-all-permissions"),
+		)
 
 		asgCapacityProvider := awsecs.NewAsgCapacityProvider(this, jsii.String(*asgCapacityProvider.AutoScalingGroupName+"AsgCapacityProvider"), &awsecs.AsgCapacityProviderProps{
 			AutoScalingGroup:                   autoScalingGroup,
@@ -166,7 +210,7 @@ func NewContainerCompute(scope constructs.Construct, id string, props *Container
 		SecurityGroup:    loadBalancerSecurityGroup,
 	})
 
-	httpsListener := awselasticloadbalancingv2.NewApplicationListener(this, jsii.String("LoadbalancerHttpdListener"), &awselasticloadbalancingv2.ApplicationListenerProps{
+	httpsListener := awselasticloadbalancingv2.NewApplicationListener(this, jsii.String("LoadbalancerHttpsListener"), &awselasticloadbalancingv2.ApplicationListenerProps{
 		LoadBalancer: loadBalancer,
 		Certificates: &[]awselasticloadbalancingv2.IListenerCertificate{
 			awselasticloadbalancingv2.ListenerCertificate_FromArn(props.LoadBalancerProps.ListenerCertificateArn)},
@@ -212,4 +256,16 @@ func NewContainerCompute(scope constructs.Construct, id string, props *Container
 
 func (c *containerCompute) Cluster() awsecs.ICluster {
 	return c.cluster
+}
+
+func (lb *containerCompute) LoadBalancer() awselasticloadbalancingv2.IApplicationLoadBalancer {
+	return lb.loadbalancer
+}
+
+func (cm *containerCompute) CloudMapNamespace() awsservicediscovery.IPrivateDnsNamespace {
+	return cm.cloudmapNamespace
+}
+
+func (hl *containerCompute) HttpsListener() awselasticloadbalancingv2.IApplicationListener {
+	return hl.httpsListener
 }
