@@ -65,5 +65,9 @@
   "security-group:account=305251478828:region=us-east-1:securityGroupId=sg-0d69523be628ee1bf": {
     "securityGroupId": "sg-0d69523be628ee1bf",
     "allowAllOutbound": false
+  },
+  "security-group:account=305251478828:region=us-east-1:securityGroupId=sg-0860f3bf2591663b2": {
+    "securityGroupId": "sg-0860f3bf2591663b2",
+    "allowAllOutbound": false
   }
 }
