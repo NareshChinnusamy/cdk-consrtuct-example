@@ -3,7 +3,7 @@ module cdk-consrtuct
 go 1.18
 
 require (
-	github.com/aws/aws-cdk-go/awscdk v1.188.0-devpreview
+	github.com/aws/aws-cdk-go/awscdk v1.189.0-devpreview
 	github.com/aws/aws-cdk-go/awscdk/v2 v2.60.0
 	github.com/aws/constructs-go/constructs/v10 v10.1.214
 	github.com/aws/jsii-runtime-go v1.73.0
@@ -11,7 +11,7 @@ require (
 
 require (
 	github.com/Masterminds/semver/v3 v3.2.0 // indirect
-	github.com/aws/constructs-go/constructs/v3 v3.4.204 // indirect
+	github.com/aws/constructs-go/constructs/v3 v3.4.211 // indirect
 	github.com/cdklabs/awscdk-asset-awscli-go/awscliv1/v2 v2.2.49 // indirect
 	github.com/cdklabs/awscdk-asset-kubectl-go/kubectlv20/v2 v2.1.1 // indirect
 	github.com/cdklabs/awscdk-asset-node-proxy-agent-go/nodeproxyagentv5/v2 v2.0.38 // indirect

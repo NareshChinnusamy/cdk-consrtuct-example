@@ -69,5 +69,13 @@
   "security-group:account=305251478828:region=us-east-1:securityGroupId=sg-0860f3bf2591663b2": {
     "securityGroupId": "sg-0860f3bf2591663b2",
     "allowAllOutbound": false
+  },
+  "security-group:account=305251478828:region=us-east-1:securityGroupId=sg-0ca01451382c5594c": {
+    "securityGroupId": "sg-0ca01451382c5594c",
+    "allowAllOutbound": false
+  },
+  "security-group:account=305251478828:region=us-east-1:securityGroupId=sg-076574aabd3b41d78": {
+    "securityGroupId": "sg-076574aabd3b41d78",
+    "allowAllOutbound": false
   }
 }
