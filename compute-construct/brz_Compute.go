@@ -61,14 +61,18 @@ type VpcProps struct {
 	VpcId string
 }
 
-type ContainerComputeProps struct {
-	Vpc                 VpcProps
-	Cluster             ContainerComputeClusterProps
+type AutoscalinGroupCapacityProviders struct {
 	AutoScalingGroup    ContainerComputeAsgProps
-	AsgCapacityProvider []ContainerComputeAsgCapacityProviderProps
-	SecurityGroup       ContainerComputeAsgProps
-	LoadBalancer        ContainerComputeLoadBalancerProps
-	CloudmapNamespace   ContainerComputeCloudmapNamespaceProps
+	AsgCapacityProvider ContainerComputeAsgCapacityProviderProps
+}
+
+type ContainerComputeProps struct {
+	Vpc                  VpcProps
+	Cluster              ContainerComputeClusterProps
+	AsgcapacityProviders []AutoscalinGroupCapacityProviders
+	SecurityGroup        ContainerComputeAsgProps
+	LoadBalancer         ContainerComputeLoadBalancerProps
+	CloudmapNamespace    ContainerComputeCloudmapNamespaceProps
 }
 
 func NewContainerCompute(scope constructs.Construct, id *string, props *ContainerComputeProps) ContainerCompute {
@@ -84,21 +88,14 @@ func NewContainerCompute(scope constructs.Construct, id *string, props *Containe
 		Vpc:                            vpc,
 	})
 
-	for _, asgCapacityProvider := range props.AsgCapacityProvider {
+	// for _, asgCapacityProvider := range props.AsgcapacityProviders {
 
-		autoScalingGroup := createAutoScalingGroup(this, id, &props.AutoScalingGroup, *cluster.ClusterName())
+	// 	autoScalingGroup := createAutoScalingGroup(this, id, &props.AsgcapacityProviders, *cluster.ClusterName())
 
-		asgCapacityProvider := awsecs.NewAsgCapacityProvider(this, jsii.String(asgCapacityProvider.CapacityProviderName+"AsgCapacityProvider"), &awsecs.AsgCapacityProviderProps{
-			AutoScalingGroup:                   autoScalingGroup,
-			EnableManagedScaling:               jsii.Bool(true),
-			EnableManagedTerminationProtection: jsii.Bool(false),
-			TargetCapacityPercent:              jsii.Number(100),
-			CapacityProviderName:               jsii.String(asgCapacityProvider.CapacityProviderName),
-			CanContainersAccessInstanceRole:    jsii.Bool(true),
-		})
+	// 	asgCapacityProvider := createAsgCapacityProvider(this, id, &props.AsgCapacityProvider, autoScalingGroup)
 
-		cluster.AddAsgCapacityProvider(asgCapacityProvider, &awsecs.AddAutoScalingGroupCapacityOptions{})
-	}
+	// 	cluster.AddAsgCapacityProvider(asgCapacityProvider, &awsecs.AddAutoScalingGroupCapacityOptions{})
+	// }
 
 	loadBalancer := awselasticloadbalancingv2.NewApplicationLoadBalancer(this, jsii.String("LoadBalanerSetup"), &awselasticloadbalancingv2.ApplicationLoadBalancerProps{
 		LoadBalancerName: jsii.String(props.LoadBalancer.LoadBalancerName),
@@ -190,46 +187,16 @@ func createAsgSecurityGroup(scope constructs.Construct, id *string, name *string
 
 func createAutoScalingGroup(scope constructs.Construct, id *string, props *ContainerComputeAsgProps, clusterName string) awsautoscaling.IAutoScalingGroup {
 
-	asgPolicyDocument := awsiam.NewPolicyDocument(&awsiam.PolicyDocumentProps{
-		Statements: &[]awsiam.PolicyStatement{awsiam.NewPolicyStatement(&awsiam.PolicyStatementProps{Effect: awsiam.Effect_ALLOW,
-			Actions: &[]*string{
-				jsii.String("ec2:AttachVolume"),
-				jsii.String("ec2:CreateVolume"),
-				jsii.String("ec2:DeleteVolume"),
-				jsii.String("ec2:DescribeAvailabilityZones"),
-				jsii.String("ec2:DescribeInstances"),
-				jsii.String("ec2:DescribeVolumes"),
-				jsii.String("ec2:DescribeVolumeAttribute"),
-				jsii.String("ec2:DetachVolume"),
-				jsii.String("ec2:DescribeVolumeStatus"),
-				jsii.String("ec2:ModifyVolumeAttribute"),
-				jsii.String("ec2:DescribeTags"),
-				jsii.String("ec2:CreateTags"),
-			},
-			Resources: &[]*string{jsii.String("*")}})},
-	})
+	asgPolicyDocument := createAsgPolicyDocument()
 
-	role := awsiam.NewRole(scope, jsii.String("IamRole"+props.Name), &awsiam.RoleProps{
-		Description:    jsii.String("Iam role for autoscaling group " + props.Name),
-		InlinePolicies: &map[string]awsiam.PolicyDocument{"Ec2VolumeAccess": asgPolicyDocument},
-		RoleName:       jsii.String(props.Name + "InstanceProfileRole"),
-		AssumedBy:      awsiam.NewServicePrincipal(jsii.String("ec2.amazonaws.com"), &awsiam.ServicePrincipalOpts{}),
-	})
-
-	image := awsec2.NewAmazonLinuxImage(&awsec2.AmazonLinuxImageProps{
-		CpuType:        awsec2.AmazonLinuxCpuType_X86_64,
-		Edition:        awsec2.AmazonLinuxEdition_STANDARD,
-		Generation:     awsec2.AmazonLinuxGeneration_AMAZON_LINUX_2,
-		Virtualization: awsec2.AmazonLinuxVirt_HVM,
-		Kernel:         awsec2.AmazonLinuxKernel_KERNEL5_X,
-	})
+	role := createAsgRole(scope, id, props, asgPolicyDocument)
 
 	asg := awsautoscaling.NewAutoScalingGroup(scope, id, &awsautoscaling.AutoScalingGroupProps{
 		AutoScalingGroupName: jsii.String(props.Name),
 		MinCapacity:          jsii.Number(props.MinCapacity),
 		MaxCapacity:          jsii.Number(props.MaxCapacity),
 		InstanceType:         awsec2.InstanceType_Of(props.InstanceClass, props.InstanceSize),
-		MachineImage:         image,
+		MachineImage:         createMachineImage(),
 		SecurityGroup: createAsgSecurityGroup(scope, jsii.String(props.Name+"SecurityGroup"), jsii.String(props.Name+
 			"SecurityGroup"), jsii.String("Security group for "+props.Name), props.Vpc),
 		UserData:   awsec2.UserData_ForLinux(&awsec2.LinuxUserDataOptions{Shebang: jsii.String("#!/bin/bash")}),
@@ -251,6 +218,62 @@ func createAutoScalingGroup(scope constructs.Construct, id *string, props *Conta
 		jsii.String("docker plugin install rexray/ebs REXRAY_PREEMPT=true EBS_REGION="+*awscdk.Aws_REGION()+" --grant-all-permissions"),
 	)
 	return asg
+}
+
+func createAsgPolicyDocument() awsiam.PolicyDocument {
+
+	pd := awsiam.NewPolicyDocument(&awsiam.PolicyDocumentProps{
+		Statements: &[]awsiam.PolicyStatement{awsiam.NewPolicyStatement(&awsiam.PolicyStatementProps{Effect: awsiam.Effect_ALLOW,
+			Actions: &[]*string{
+				jsii.String("ec2:AttachVolume"),
+				jsii.String("ec2:CreateVolume"),
+				jsii.String("ec2:DeleteVolume"),
+				jsii.String("ec2:DescribeAvailabilityZones"),
+				jsii.String("ec2:DescribeInstances"),
+				jsii.String("ec2:DescribeVolumes"),
+				jsii.String("ec2:DescribeVolumeAttribute"),
+				jsii.String("ec2:DetachVolume"),
+				jsii.String("ec2:DescribeVolumeStatus"),
+				jsii.String("ec2:ModifyVolumeAttribute"),
+				jsii.String("ec2:DescribeTags"),
+				jsii.String("ec2:CreateTags"),
+			},
+			Resources: &[]*string{jsii.String("*")}})},
+	})
+	return pd
+}
+
+func createAsgRole(scope constructs.Construct, id *string, props *ContainerComputeAsgProps, policyDocument awsiam.PolicyDocument) awsiam.IRole {
+	role := awsiam.NewRole(scope, jsii.String("IamRole"+props.Name), &awsiam.RoleProps{
+		Description:    jsii.String("Iam role for autoscaling group " + props.Name),
+		InlinePolicies: &map[string]awsiam.PolicyDocument{"Ec2VolumeAccess": policyDocument},
+		RoleName:       jsii.String(props.Name + "InstanceProfileRole"),
+		AssumedBy:      awsiam.NewServicePrincipal(jsii.String("ec2.amazonaws.com"), &awsiam.ServicePrincipalOpts{}),
+	})
+	return role
+}
+
+func createMachineImage() awsec2.IMachineImage {
+	image := awsec2.NewAmazonLinuxImage(&awsec2.AmazonLinuxImageProps{
+		CpuType:        awsec2.AmazonLinuxCpuType_X86_64,
+		Edition:        awsec2.AmazonLinuxEdition_STANDARD,
+		Generation:     awsec2.AmazonLinuxGeneration_AMAZON_LINUX_2,
+		Virtualization: awsec2.AmazonLinuxVirt_HVM,
+		Kernel:         awsec2.AmazonLinuxKernel_KERNEL5_X,
+	})
+	return image
+}
+
+func createAsgCapacityProvider(scope constructs.Construct, id *string, props *ContainerComputeAsgCapacityProviderProps, asg awsautoscaling.IAutoScalingGroup) awsecs.AsgCapacityProvider {
+	asgCapacityProvider := awsecs.NewAsgCapacityProvider(scope, jsii.String(props.CapacityProviderName+"AsgCapacityProvider"), &awsecs.AsgCapacityProviderProps{
+		AutoScalingGroup:                   asg,
+		EnableManagedScaling:               jsii.Bool(true),
+		EnableManagedTerminationProtection: jsii.Bool(false),
+		TargetCapacityPercent:              jsii.Number(100),
+		CapacityProviderName:               jsii.String(props.CapacityProviderName),
+		CanContainersAccessInstanceRole:    jsii.Bool(true),
+	})
+	return asgCapacityProvider
 }
 
 func createLbSecurityGroup(scope constructs.Construct, id *string, name *string, description *string, vpc awsec2.IVpc) awsec2.ISecurityGroup {
