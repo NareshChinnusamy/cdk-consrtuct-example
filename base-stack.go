@@ -119,6 +119,16 @@ func demo_service(scope constructs.Construct, id string, props *CdkConsrtuctStac
 		TaskDefinition: taskdefinition,
 	})
 
+	mp := &awsecs.MountPoint{
+		ContainerPath: jsii.String("containerPath"),
+		ReadOnly:      jsii.Bool(false),
+		SourceVolume:  jsii.String("SourceVolume"),
+	}
+
+	var list []*awsecs.MountPoint
+	list = append(list, mp)
+	containerDefinition.AddMountPoints(list...)
+
 	service := awsecs.NewEc2Service(stack, jsii.String("EcsService"), &awsecs.Ec2ServiceProps{
 		Cluster: awsecs.Cluster_FromClusterAttributes(stack, jsii.String("LookupCluster"), &awsecs.ClusterAttributes{
 			ClusterName: jsii.String("ClusterGoLang"),
