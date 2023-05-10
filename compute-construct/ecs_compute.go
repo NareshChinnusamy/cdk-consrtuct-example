@@ -2,30 +2,32 @@ package breezeware
 
 import (
 	"github.com/aws/aws-cdk-go/awscdk/v2"
-	"github.com/aws/aws-cdk-go/awscdk/v2/awsautoscaling"
-	"github.com/aws/aws-cdk-go/awscdk/v2/awsec2"
-	"github.com/aws/aws-cdk-go/awscdk/v2/awsecs"
-	"github.com/aws/aws-cdk-go/awscdk/v2/awselasticloadbalancingv2"
-	"github.com/aws/aws-cdk-go/awscdk/v2/awsiam"
-	"github.com/aws/aws-cdk-go/awscdk/v2/awsservicediscovery"
+	autoscaling "github.com/aws/aws-cdk-go/awscdk/v2/awsautoscaling"
+	ec2 "github.com/aws/aws-cdk-go/awscdk/v2/awsec2"
+	ecs "github.com/aws/aws-cdk-go/awscdk/v2/awsecs"
+	elbv2 "github.com/aws/aws-cdk-go/awscdk/v2/awselasticloadbalancingv2"
+	iam "github.com/aws/aws-cdk-go/awscdk/v2/awsiam"
+	servicediscovery "github.com/aws/aws-cdk-go/awscdk/v2/awsservicediscovery"
 	"github.com/aws/constructs-go/constructs/v10"
 	"github.com/aws/jsii-runtime-go"
 )
 
+var vpc ec2.IVpc
+
 type ContainerCompute interface {
 	constructs.Construct
-	Cluster() awsecs.ICluster
-	LoadBalancer() awselasticloadbalancingv2.IApplicationLoadBalancer
-	CloudMapNamespace() awsservicediscovery.IPrivateDnsNamespace
-	HttpsListener() awselasticloadbalancingv2.IApplicationListener
+	Cluster() ecs.ICluster
+	LoadBalancer() elbv2.IApplicationLoadBalancer
+	CloudMapNamespace() servicediscovery.IPrivateDnsNamespace
+	HttpsListener() elbv2.IApplicationListener
 }
 
 type containerCompute struct {
 	constructs.Construct
-	cluster           awsecs.ICluster
-	loadbalancer      awselasticloadbalancingv2.IApplicationLoadBalancer
-	cloudmapNamespace awsservicediscovery.IPrivateDnsNamespace
-	httpsListener     awselasticloadbalancingv2.IApplicationListener
+	cluster           ecs.ICluster
+	loadbalancer      elbv2.IApplicationLoadBalancer
+	cloudmapNamespace servicediscovery.IPrivateDnsNamespace
+	httpsListener     elbv2.IApplicationListener
 }
 
 type VpcProps struct {
@@ -37,7 +39,7 @@ type ContainerComputeClusterProps struct {
 	ContainerInsights                bool
 	IsAsgCapacityProviderEnabled     bool
 	IsFargateCapacityProviderEnabled bool
-	Vpc                              awsec2.IVpc
+	vpc                              ec2.IVpc
 }
 
 type ContainerComputeAsgProps struct {
@@ -46,9 +48,9 @@ type ContainerComputeAsgProps struct {
 	MaxCapacity     float64
 	DesiredCapacity float64
 	SshKeyName      string
-	InstanceClass   awsec2.InstanceClass
-	InstanceSize    awsec2.InstanceSize
-	Vpc             awsec2.IVpc
+	InstanceClass   ec2.InstanceClass
+	InstanceSize    ec2.InstanceSize
+	vpc             ec2.IVpc
 }
 
 type ContainerComputeAsgCapacityProviderProps struct {
@@ -58,19 +60,19 @@ type ContainerComputeAsgCapacityProviderProps struct {
 type ContainerComputeLoadBalancerProps struct {
 	Name                   string
 	ListenerCertificateArn string
-	Vpc                    awsec2.IVpc
+	vpc                    ec2.IVpc
 }
 
 type ContainerComputeCloudmapNamespaceProps struct {
 	Name        string
 	Description string
-	Vpc         awsec2.IVpc
+	vpc         ec2.IVpc
 }
 
 type securityGroupProps struct {
 	Name        string
 	Description string
-	Vpc         awsec2.IVpc
+	vpc         ec2.IVpc
 }
 
 type AutoscalinGroupCapacityProviders struct {
@@ -79,6 +81,7 @@ type AutoscalinGroupCapacityProviders struct {
 }
 
 type ContainerComputeProps struct {
+	VpcId                *string
 	Cluster              ContainerComputeClusterProps
 	AsgCapacityProviders []AutoscalinGroupCapacityProviders
 	LoadBalancer         ContainerComputeLoadBalancerProps
@@ -89,6 +92,8 @@ func NewContainerCompute(scope constructs.Construct, id *string, props *Containe
 
 	this := constructs.NewConstruct(scope, id)
 
+	vpc = LookupVpc(scope, jsii.String("LookUpVpc"), &VpcProps{VpcId: *props.VpcId})
+
 	cluster := createCluster(this, jsii.String("EcsCluster"), &props.Cluster)
 
 	if props.Cluster.IsAsgCapacityProviderEnabled {
@@ -98,7 +103,7 @@ func NewContainerCompute(scope constructs.Construct, id *string, props *Containe
 
 			capacityProvider := createCapacityProvider(this, jsii.String(asgCapacityProvider.CapacityProvider.Name+"AsgCapacityProvider"), &asgCapacityProvider.CapacityProvider, autoScalingGroup)
 
-			cluster.AddAsgCapacityProvider(capacityProvider, &awsecs.AddAutoScalingGroupCapacityOptions{})
+			cluster.AddAsgCapacityProvider(capacityProvider, &ecs.AddAutoScalingGroupCapacityOptions{})
 		}
 	}
 	loadBalancer := createLoadBalancer(this, jsii.String("LoadBalanerSetup"), &props.LoadBalancer)
@@ -112,51 +117,51 @@ func NewContainerCompute(scope constructs.Construct, id *string, props *Containe
 	return &containerCompute{this, cluster, loadBalancer, cloudmapNamespace, httpsListener}
 }
 
-func (c *containerCompute) Cluster() awsecs.ICluster {
+func (c *containerCompute) Cluster() ecs.ICluster {
 	return c.cluster
 }
 
-func (lb *containerCompute) LoadBalancer() awselasticloadbalancingv2.IApplicationLoadBalancer {
+func (lb *containerCompute) LoadBalancer() elbv2.IApplicationLoadBalancer {
 	return lb.loadbalancer
 }
 
-func (cm *containerCompute) CloudMapNamespace() awsservicediscovery.IPrivateDnsNamespace {
+func (cm *containerCompute) CloudMapNamespace() servicediscovery.IPrivateDnsNamespace {
 	return cm.cloudmapNamespace
 }
 
-func (hl *containerCompute) HttpsListener() awselasticloadbalancingv2.IApplicationListener {
+func (hl *containerCompute) HttpsListener() elbv2.IApplicationListener {
 	return hl.httpsListener
 }
 
-func LookupVpc(scope constructs.Construct, id *string, props *VpcProps) awsec2.IVpc {
-	vpc := awsec2.Vpc_FromLookup(scope, id, &awsec2.VpcLookupOptions{
+func LookupVpc(scope constructs.Construct, id *string, props *VpcProps) ec2.IVpc {
+	vpc := ec2.Vpc_FromLookup(scope, id, &ec2.VpcLookupOptions{
 		VpcId: jsii.String(props.VpcId),
 	})
 	return vpc
 }
 
-func createCluster(scope constructs.Construct, id *string, props *ContainerComputeClusterProps) awsecs.Cluster {
+func createCluster(scope constructs.Construct, id *string, props *ContainerComputeClusterProps) ecs.Cluster {
 	if props.IsFargateCapacityProviderEnabled {
-		cluster := awsecs.NewCluster(scope, id, &awsecs.ClusterProps{
+		cluster := ecs.NewCluster(scope, id, &ecs.ClusterProps{
 			ClusterName:                    jsii.String(props.Name),
 			ContainerInsights:              jsii.Bool(props.ContainerInsights),
 			EnableFargateCapacityProviders: jsii.Bool(true),
-			Vpc:                            props.Vpc,
+			Vpc:                            vpc,
 		})
 		return cluster
 	} else {
-		cluster := awsecs.NewCluster(scope, id, &awsecs.ClusterProps{
+		cluster := ecs.NewCluster(scope, id, &ecs.ClusterProps{
 			ClusterName:                    jsii.String(props.Name),
 			ContainerInsights:              jsii.Bool(props.ContainerInsights),
 			EnableFargateCapacityProviders: jsii.Bool(false),
-			Vpc:                            props.Vpc,
+			Vpc:                            vpc,
 		})
 		return cluster
 	}
 }
 
-func createLbSecurityGroup(scope constructs.Construct, id *string, props *securityGroupProps, vpc awsec2.IVpc) awsec2.ISecurityGroup {
-	lbSecurityGroup := awsec2.NewSecurityGroup(scope, id, &awsec2.SecurityGroupProps{
+func createLbSecurityGroup(scope constructs.Construct, id *string, props *securityGroupProps, vpc ec2.IVpc) ec2.ISecurityGroup {
+	lbSecurityGroup := ec2.NewSecurityGroup(scope, id, &ec2.SecurityGroupProps{
 		AllowAllOutbound:  jsii.Bool(true),
 		Vpc:               vpc,
 		SecurityGroupName: &props.Name,
@@ -164,15 +169,15 @@ func createLbSecurityGroup(scope constructs.Construct, id *string, props *securi
 	})
 
 	lbSecurityGroup.AddIngressRule(
-		awsec2.Peer_AnyIpv4(),
-		awsec2.Port_Tcp(jsii.Number(443)),
+		ec2.Peer_AnyIpv4(),
+		ec2.Port_Tcp(jsii.Number(443)),
 		jsii.String("Default HTTPS Port"),
 		jsii.Bool(false),
 	)
 
 	lbSecurityGroup.AddIngressRule(
-		awsec2.Peer_AnyIpv4(),
-		awsec2.Port_Tcp(jsii.Number(80)),
+		ec2.Peer_AnyIpv4(),
+		ec2.Port_Tcp(jsii.Number(80)),
 		jsii.String("Default HTTP Port"),
 		jsii.Bool(false),
 	)
@@ -180,40 +185,40 @@ func createLbSecurityGroup(scope constructs.Construct, id *string, props *securi
 	return lbSecurityGroup
 }
 
-func createLoadBalancer(scope constructs.Construct, id *string, props *ContainerComputeLoadBalancerProps) awselasticloadbalancingv2.IApplicationLoadBalancer {
-	lb := awselasticloadbalancingv2.NewApplicationLoadBalancer(scope, id, &awselasticloadbalancingv2.ApplicationLoadBalancerProps{
+func createLoadBalancer(scope constructs.Construct, id *string, props *ContainerComputeLoadBalancerProps) elbv2.IApplicationLoadBalancer {
+	lb := elbv2.NewApplicationLoadBalancer(scope, id, &elbv2.ApplicationLoadBalancerProps{
 		LoadBalancerName: jsii.String(props.Name),
-		Vpc:              props.Vpc,
+		Vpc:              vpc,
 		InternetFacing:   jsii.Bool(true),
-		VpcSubnets:       &awsec2.SubnetSelection{SubnetType: awsec2.SubnetType_PUBLIC},
+		VpcSubnets:       &ec2.SubnetSelection{SubnetType: ec2.SubnetType_PUBLIC},
 		IdleTimeout:      awscdk.Duration_Seconds(jsii.Number(120)),
-		IpAddressType:    awselasticloadbalancingv2.IpAddressType_IPV4,
+		IpAddressType:    elbv2.IpAddressType_IPV4,
 		SecurityGroup: createLbSecurityGroup(scope, jsii.String(props.Name+"SecurityGroup"), &securityGroupProps{
 			Name:        props.Name + "SecurityGroup",
 			Description: "Security group for " + props.Name,
 		},
-			props.Vpc,
+			vpc,
 		),
 	})
 	return lb
 }
 
-func createHttpsListener(scope constructs.Construct, id *string, props *ContainerComputeLoadBalancerProps, lb awselasticloadbalancingv2.IApplicationLoadBalancer) awselasticloadbalancingv2.IApplicationListener {
-	httpsListener := awselasticloadbalancingv2.NewApplicationListener(scope, jsii.String("LoadbalancerHttpsListener"), &awselasticloadbalancingv2.ApplicationListenerProps{
+func createHttpsListener(scope constructs.Construct, id *string, props *ContainerComputeLoadBalancerProps, lb elbv2.IApplicationLoadBalancer) elbv2.IApplicationListener {
+	httpsListener := elbv2.NewApplicationListener(scope, jsii.String("LoadbalancerHttpsListener"), &elbv2.ApplicationListenerProps{
 		LoadBalancer: lb,
-		Certificates: &[]awselasticloadbalancingv2.IListenerCertificate{
-			awselasticloadbalancingv2.ListenerCertificate_FromArn(jsii.String(props.ListenerCertificateArn))},
-		Protocol: awselasticloadbalancingv2.ApplicationProtocol_HTTPS,
+		Certificates: &[]elbv2.IListenerCertificate{
+			elbv2.ListenerCertificate_FromArn(jsii.String(props.ListenerCertificateArn))},
+		Protocol: elbv2.ApplicationProtocol_HTTPS,
 		Port:     jsii.Number(443),
-		DefaultTargetGroups: &[]awselasticloadbalancingv2.IApplicationTargetGroup{
-			awselasticloadbalancingv2.NewApplicationTargetGroup(
+		DefaultTargetGroups: &[]elbv2.IApplicationTargetGroup{
+			elbv2.NewApplicationTargetGroup(
 				scope,
 				jsii.String("DefaultTargetGroup"),
-				&awselasticloadbalancingv2.ApplicationTargetGroupProps{
+				&elbv2.ApplicationTargetGroupProps{
 					TargetGroupName: jsii.String(props.Name + "DefaultTargetGroup"),
-					TargetType:      awselasticloadbalancingv2.TargetType_INSTANCE,
-					Vpc:             props.Vpc,
-					Protocol:        awselasticloadbalancingv2.ApplicationProtocol_HTTP,
+					TargetType:      elbv2.TargetType_INSTANCE,
+					Vpc:             vpc,
+					Protocol:        elbv2.ApplicationProtocol_HTTP,
 					Port:            jsii.Number(8080),
 				},
 			),
@@ -222,13 +227,13 @@ func createHttpsListener(scope constructs.Construct, id *string, props *Containe
 	return httpsListener
 }
 
-func createHttpListener(scope constructs.Construct, id *string, lb awselasticloadbalancingv2.IApplicationLoadBalancer) {
+func createHttpListener(scope constructs.Construct, id *string, lb elbv2.IApplicationLoadBalancer) {
 
-	awselasticloadbalancingv2.NewApplicationListener(scope, jsii.String("LoadbalancerHttpListener"), &awselasticloadbalancingv2.ApplicationListenerProps{
+	elbv2.NewApplicationListener(scope, jsii.String("LoadbalancerHttpListener"), &elbv2.ApplicationListenerProps{
 		Port:         jsii.Number(80),
 		LoadBalancer: lb,
-		DefaultAction: awselasticloadbalancingv2.ListenerAction_Redirect(
-			&awselasticloadbalancingv2.RedirectOptions{
+		DefaultAction: elbv2.ListenerAction_Redirect(
+			&elbv2.RedirectOptions{
 				Host:      jsii.String("#{host}"),
 				Protocol:  jsii.String("HTTPS"),
 				Port:      jsii.String("443"),
@@ -239,28 +244,28 @@ func createHttpListener(scope constructs.Construct, id *string, lb awselasticloa
 	})
 }
 
-func createCloudMapNamespace(scope constructs.Construct, id *string, props *ContainerComputeCloudmapNamespaceProps) awsservicediscovery.IPrivateDnsNamespace {
-	cloudmapNamespace := awsservicediscovery.NewPrivateDnsNamespace(scope, id, &awsservicediscovery.PrivateDnsNamespaceProps{
+func createCloudMapNamespace(scope constructs.Construct, id *string, props *ContainerComputeCloudmapNamespaceProps) servicediscovery.IPrivateDnsNamespace {
+	cloudmapNamespace := servicediscovery.NewPrivateDnsNamespace(scope, id, &servicediscovery.PrivateDnsNamespaceProps{
 		Name:        jsii.String(props.Name),
 		Description: jsii.String(props.Description),
-		Vpc:         props.Vpc,
+		Vpc:         vpc,
 	})
 	return cloudmapNamespace
 }
 
-func createAsgSecurityGroup(scope constructs.Construct, id *string, props *securityGroupProps) awsec2.ISecurityGroup {
-	asgSecurityGroup := awsec2.NewSecurityGroup(scope, id, &awsec2.SecurityGroupProps{
+func createAsgSecurityGroup(scope constructs.Construct, id *string, props *securityGroupProps) ec2.ISecurityGroup {
+	asgSecurityGroup := ec2.NewSecurityGroup(scope, id, &ec2.SecurityGroupProps{
 		AllowAllOutbound:  jsii.Bool(true),
-		Vpc:               props.Vpc,
+		Vpc:               vpc,
 		SecurityGroupName: &props.Name,
 		Description:       &props.Description,
 	})
 	return asgSecurityGroup
 }
 
-func createAsgPolicyDocument() awsiam.PolicyDocument {
-	pd := awsiam.NewPolicyDocument(&awsiam.PolicyDocumentProps{
-		Statements: &[]awsiam.PolicyStatement{awsiam.NewPolicyStatement(&awsiam.PolicyStatementProps{Effect: awsiam.Effect_ALLOW,
+func createAsgPolicyDocument() iam.PolicyDocument {
+	pd := iam.NewPolicyDocument(&iam.PolicyDocumentProps{
+		Statements: &[]iam.PolicyStatement{iam.NewPolicyStatement(&iam.PolicyStatementProps{Effect: iam.Effect_ALLOW,
 			Actions: &[]*string{
 				jsii.String("ec2:AttachVolume"),
 				jsii.String("ec2:CreateVolume"),
@@ -280,36 +285,36 @@ func createAsgPolicyDocument() awsiam.PolicyDocument {
 	return pd
 }
 
-func createAsgRole(scope constructs.Construct, id *string, props *ContainerComputeAsgProps, policyDocument awsiam.PolicyDocument) awsiam.IRole {
-	role := awsiam.NewRole(scope, id, &awsiam.RoleProps{
+func createAsgRole(scope constructs.Construct, id *string, props *ContainerComputeAsgProps, policyDocument iam.PolicyDocument) iam.IRole {
+	role := iam.NewRole(scope, id, &iam.RoleProps{
 		Description:    jsii.String("Iam role for autoscaling group " + props.Name),
-		InlinePolicies: &map[string]awsiam.PolicyDocument{"Ec2VolumeAccess": policyDocument},
+		InlinePolicies: &map[string]iam.PolicyDocument{"Ec2VolumeAccess": policyDocument},
 		RoleName:       jsii.String(props.Name + "InstanceProfileRole"),
-		AssumedBy:      awsiam.NewServicePrincipal(jsii.String("ec2.amazonaws.com"), &awsiam.ServicePrincipalOpts{}),
+		AssumedBy:      iam.NewServicePrincipal(jsii.String("ec2.amazonaws.com"), &iam.ServicePrincipalOpts{}),
 	})
 	return role
 }
 
-func createAutoScalingGroup(scope constructs.Construct, id *string, props *ContainerComputeAsgProps, clusterName string) awsautoscaling.IAutoScalingGroup {
+func createAutoScalingGroup(scope constructs.Construct, id *string, props *ContainerComputeAsgProps, clusterName string) autoscaling.IAutoScalingGroup {
 	asgPolicyDocument := createAsgPolicyDocument()
 
 	role := createAsgRole(scope, jsii.String("IamRole"+props.Name), props, asgPolicyDocument)
 
-	asg := awsautoscaling.NewAutoScalingGroup(scope, id, &awsautoscaling.AutoScalingGroupProps{
+	asg := autoscaling.NewAutoScalingGroup(scope, id, &autoscaling.AutoScalingGroupProps{
 		AutoScalingGroupName: jsii.String(props.Name),
 		MinCapacity:          jsii.Number(props.MinCapacity),
 		MaxCapacity:          jsii.Number(props.MaxCapacity),
-		InstanceType:         awsec2.InstanceType_Of(props.InstanceClass, props.InstanceSize),
+		InstanceType:         ec2.InstanceType_Of(props.InstanceClass, props.InstanceSize),
 		MachineImage:         createMachineImage(),
 		SecurityGroup: createAsgSecurityGroup(scope, jsii.String(props.Name+"SecurityGroup"), &securityGroupProps{
 			Name:        props.Name + "SecurityGroup",
 			Description: "SecurityGroup for " + props.Name,
-			Vpc:         props.Vpc,
+			vpc:         vpc,
 		}),
 
-		UserData:   awsec2.UserData_ForLinux(&awsec2.LinuxUserDataOptions{Shebang: jsii.String("#!/bin/bash")}),
-		VpcSubnets: &awsec2.SubnetSelection{SubnetType: awsec2.SubnetType_PUBLIC},
-		Vpc:        props.Vpc,
+		UserData:   ec2.UserData_ForLinux(&ec2.LinuxUserDataOptions{Shebang: jsii.String("#!/bin/bash")}),
+		VpcSubnets: &ec2.SubnetSelection{SubnetType: ec2.SubnetType_PUBLIC},
+		Vpc:        vpc,
 		KeyName:    jsii.String(props.SshKeyName),
 		Role:       role,
 	})
@@ -328,19 +333,19 @@ func createAutoScalingGroup(scope constructs.Construct, id *string, props *Conta
 	return asg
 }
 
-func createMachineImage() awsec2.IMachineImage {
-	image := awsec2.NewAmazonLinuxImage(&awsec2.AmazonLinuxImageProps{
-		CpuType:        awsec2.AmazonLinuxCpuType_X86_64,
-		Edition:        awsec2.AmazonLinuxEdition_STANDARD,
-		Generation:     awsec2.AmazonLinuxGeneration_AMAZON_LINUX_2,
-		Virtualization: awsec2.AmazonLinuxVirt_HVM,
-		Kernel:         awsec2.AmazonLinuxKernel_KERNEL5_X,
+func createMachineImage() ec2.IMachineImage {
+	image := ec2.NewAmazonLinuxImage(&ec2.AmazonLinuxImageProps{
+		CpuType:        ec2.AmazonLinuxCpuType_X86_64,
+		Edition:        ec2.AmazonLinuxEdition_STANDARD,
+		Generation:     ec2.AmazonLinuxGeneration_AMAZON_LINUX_2,
+		Virtualization: ec2.AmazonLinuxVirt_HVM,
+		Kernel:         ec2.AmazonLinuxKernel_KERNEL5_X,
 	})
 	return image
 }
 
-func createCapacityProvider(scope constructs.Construct, id *string, props *ContainerComputeAsgCapacityProviderProps, asg awsautoscaling.IAutoScalingGroup) awsecs.AsgCapacityProvider {
-	asgCapacityProvider := awsecs.NewAsgCapacityProvider(scope, id, &awsecs.AsgCapacityProviderProps{
+func createCapacityProvider(scope constructs.Construct, id *string, props *ContainerComputeAsgCapacityProviderProps, asg autoscaling.IAutoScalingGroup) ecs.AsgCapacityProvider {
+	asgCapacityProvider := ecs.NewAsgCapacityProvider(scope, id, &ecs.AsgCapacityProviderProps{
 		AutoScalingGroup:                   asg,
 		EnableManagedScaling:               jsii.Bool(true),
 		EnableManagedTerminationProtection: jsii.Bool(false),

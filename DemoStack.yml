@@ -1,0 +1,1021 @@
+Resources:
+  DevComputeStackEcsClusterD24F6909:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: ClusterGoLang
+      ClusterSettings:
+        - Name: containerInsights
+          Value: disabled
+    Metadata:
+      aws:cdk:path: ComputeStack/DevComputeStack/EcsCluster/Resource
+  DevComputeStackEcsCluster2E1A4CEE:
+    Type: AWS::ECS::ClusterCapacityProviderAssociations
+    Properties:
+      CapacityProviders:
+        - FARGATE
+        - FARGATE_SPOT
+        - Ref: DevComputeStackGoLangMicroAsgCapacityProviderAsgCapacityProvider7C4C1901
+        - Ref: DevComputeStackGoLangSmallAsgCapacityProviderAsgCapacityProviderE3D06552
+      Cluster:
+        Ref: DevComputeStackEcsClusterD24F6909
+      DefaultCapacityProviderStrategy: []
+    Metadata:
+      aws:cdk:path: ComputeStack/DevComputeStack/EcsCluster/EcsCluster
+  DevComputeStackIamRoleGoLangMicroAsgA4EDE6A6:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action: sts:AssumeRole
+            Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+        Version: "2012-10-17"
+      Description: Iam role for autoscaling group GoLangMicroAsg
+      Policies:
+        - PolicyDocument:
+            Statement:
+              - Action:
+                  - ec2:AttachVolume
+                  - ec2:CreateTags
+                  - ec2:CreateVolume
+                  - ec2:DeleteVolume
+                  - ec2:DescribeAvailabilityZones
+                  - ec2:DescribeInstances
+                  - ec2:DescribeTags
+                  - ec2:DescribeVolumeAttribute
+                  - ec2:DescribeVolumeStatus
+                  - ec2:DescribeVolumes
+                  - ec2:DetachVolume
+                  - ec2:ModifyVolumeAttribute
+                Effect: Allow
+                Resource: "*"
+            Version: "2012-10-17"
+          PolicyName: Ec2VolumeAccess
+      RoleName: GoLangMicroAsgInstanceProfileRole
+    Metadata:
+      aws:cdk:path: ComputeStack/DevComputeStack/IamRoleGoLangMicroAsg/Resource
+  DevComputeStackIamRoleGoLangMicroAsgDefaultPolicyD8DD0119:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyDocument:
+        Statement:
+          - Action:
+              - ecs:DeregisterContainerInstance
+              - ecs:RegisterContainerInstance
+              - ecs:Submit*
+            Effect: Allow
+            Resource:
+              Fn::GetAtt:
+                - DevComputeStackEcsClusterD24F6909
+                - Arn
+          - Action:
+              - ecs:Poll
+              - ecs:StartTelemetrySession
+            Condition:
+              ArnEquals:
+                ecs:cluster:
+                  Fn::GetAtt:
+                    - DevComputeStackEcsClusterD24F6909
+                    - Arn
+            Effect: Allow
+            Resource: "*"
+          - Action:
+              - ecr:GetAuthorizationToken
+              - ecs:DiscoverPollEndpoint
+              - logs:CreateLogStream
+              - logs:PutLogEvents
+            Effect: Allow
+            Resource: "*"
+        Version: "2012-10-17"
+      PolicyName: DevComputeStackIamRoleGoLangMicroAsgDefaultPolicyD8DD0119
+      Roles:
+        - Ref: DevComputeStackIamRoleGoLangMicroAsgA4EDE6A6
+    Metadata:
+      aws:cdk:path: ComputeStack/DevComputeStack/IamRoleGoLangMicroAsg/DefaultPolicy/Resource
+  DevComputeStackGoLangMicroAsgSecurityGroupDBFCDC88:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: SecurityGroup for GoLangMicroAsg
+      GroupName: GoLangMicroAsgSecurityGroup
+      SecurityGroupEgress:
+        - CidrIp: 0.0.0.0/0
+          Description: Allow all outbound traffic by default
+          IpProtocol: "-1"
+      VpcId: vpc-535bd136
+    Metadata:
+      aws:cdk:path: ComputeStack/DevComputeStack/GoLangMicroAsgSecurityGroup/Resource
+  DevComputeStackGoLangMicroAsgAutoscalingGroupInstanceProfileBEB94068:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+        - Ref: DevComputeStackIamRoleGoLangMicroAsgA4EDE6A6
+    Metadata:
+      aws:cdk:path: ComputeStack/DevComputeStack/GoLangMicroAsgAutoscalingGroup/InstanceProfile
+  DevComputeStackGoLangMicroAsgAutoscalingGroupLaunchConfigB36C30BE:
+    Type: AWS::AutoScaling::LaunchConfiguration
+    Properties:
+      ImageId:
+        Ref: SsmParameterValueawsserviceamiamazonlinuxlatestamzn2amikernel510hvmx8664gp2C96584B6F00A464EAD1953AFF4B05118Parameter
+      InstanceType: t2.micro
+      IamInstanceProfile:
+        Ref: DevComputeStackGoLangMicroAsgAutoscalingGroupInstanceProfileBEB94068
+      KeyName: breezethru-demo-key-pair
+      SecurityGroups:
+        - Fn::GetAtt:
+            - DevComputeStackGoLangMicroAsgSecurityGroupDBFCDC88
+            - GroupId
+      UserData:
+        Fn::Base64:
+          Fn::Join:
+            - ""
+            - - |-
+                #!/bin/bash
+                sudo yum -y update
+                sudo yum -y install wget
+                sudo touch /etc/ecs/ecs.config
+                sudo amazon-linux-extras disable docker
+                sudo amazon-linux-extras install -y ecs
+                echo "ECS_CLUSTER=
+              - Ref: DevComputeStackEcsClusterD24F6909
+              - |-
+                " >>  /etc/ecs/ecs.config
+                echo "ECS_AWSVPC_BLOCK_IMDS=true" >> /etc/ecs/ecs.config
+                sudo systemctl enable --now --no-block ecs.service
+                docker plugin install rexray/ebs REXRAY_PREEMPT=true EBS_REGION=
+              - Ref: AWS::Region
+              - |-2
+                 --grant-all-permissions
+                echo ECS_CLUSTER=
+              - Ref: DevComputeStackEcsClusterD24F6909
+              - " >> /etc/ecs/ecs.config"
+    DependsOn:
+      - DevComputeStackIamRoleGoLangMicroAsgDefaultPolicyD8DD0119
+      - DevComputeStackIamRoleGoLangMicroAsgA4EDE6A6
+    Metadata:
+      aws:cdk:path: ComputeStack/DevComputeStack/GoLangMicroAsgAutoscalingGroup/LaunchConfig
+  DevComputeStackGoLangMicroAsgAutoscalingGroupASGAFCB1BA4:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      MaxSize: "2"
+      MinSize: "0"
+      AutoScalingGroupName: GoLangMicroAsg
+      LaunchConfigurationName:
+        Ref: DevComputeStackGoLangMicroAsgAutoscalingGroupLaunchConfigB36C30BE
+      Tags:
+        - Key: Name
+          PropagateAtLaunch: true
+          Value: ComputeStack/DevComputeStack/GoLangMicroAsgAutoscalingGroup
+      VPCZoneIdentifier:
+        - subnet-634fd606
+        - subnet-d428dfff
+        - subnet-f3c77284
+        - subnet-d491468d
+        - subnet-a5f9649f
+        - subnet-e52e94e9
+    UpdatePolicy:
+      AutoScalingScheduledAction:
+        IgnoreUnmodifiedGroupSizeProperties: true
+    Metadata:
+      aws:cdk:path: ComputeStack/DevComputeStack/GoLangMicroAsgAutoscalingGroup/ASG
+  DevComputeStackGoLangMicroAsgAutoscalingGroupDrainECSHookFunctionServiceRole3E31344B:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action: sts:AssumeRole
+            Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+        Version: "2012-10-17"
+      ManagedPolicyArns:
+        - Fn::Join:
+            - ""
+            - - "arn:"
+              - Ref: AWS::Partition
+              - :iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Tags:
+        - Key: Name
+          Value: ComputeStack/DevComputeStack/GoLangMicroAsgAutoscalingGroup
+    Metadata:
+      aws:cdk:path: ComputeStack/DevComputeStack/GoLangMicroAsgAutoscalingGroup/DrainECSHook/Function/ServiceRole/Resource
+  DevComputeStackGoLangMicroAsgAutoscalingGroupDrainECSHookFunctionServiceRoleDefaultPolicyB5E96AED:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyDocument:
+        Statement:
+          - Action:
+              - ec2:DescribeHosts
+              - ec2:DescribeInstanceAttribute
+              - ec2:DescribeInstanceStatus
+              - ec2:DescribeInstances
+            Effect: Allow
+            Resource: "*"
+          - Action: autoscaling:CompleteLifecycleAction
+            Effect: Allow
+            Resource:
+              Fn::Join:
+                - ""
+                - - arn:aws:autoscaling:us-east-1:305251478828:autoScalingGroup:*:autoScalingGroupName/
+                  - Ref: DevComputeStackGoLangMicroAsgAutoscalingGroupASGAFCB1BA4
+          - Action:
+              - ecs:DescribeContainerInstances
+              - ecs:DescribeTasks
+              - ecs:ListTasks
+              - ecs:UpdateContainerInstancesState
+            Condition:
+              ArnEquals:
+                ecs:cluster:
+                  Fn::GetAtt:
+                    - DevComputeStackEcsClusterD24F6909
+                    - Arn
+            Effect: Allow
+            Resource: "*"
+          - Action:
+              - ecs:ListContainerInstances
+              - ecs:SubmitContainerStateChange
+              - ecs:SubmitTaskStateChange
+            Effect: Allow
+            Resource:
+              Fn::GetAtt:
+                - DevComputeStackEcsClusterD24F6909
+                - Arn
+        Version: "2012-10-17"
+      PolicyName: DevComputeStackGoLangMicroAsgAutoscalingGroupDrainECSHookFunctionServiceRoleDefaultPolicyB5E96AED
+      Roles:
+        - Ref: DevComputeStackGoLangMicroAsgAutoscalingGroupDrainECSHookFunctionServiceRole3E31344B
+    Metadata:
+      aws:cdk:path: ComputeStack/DevComputeStack/GoLangMicroAsgAutoscalingGroup/DrainECSHook/Function/ServiceRole/DefaultPolicy/Resource
+  DevComputeStackGoLangMicroAsgAutoscalingGroupDrainECSHookFunctionE2F2F8FE:
+    Type: AWS::Lambda::Function
+    Properties:
+      Code:
+        ZipFile: |
+          import boto3, json, os, time
+
+          ecs = boto3.client('ecs')
+          autoscaling = boto3.client('autoscaling')
+
+
+          def lambda_handler(event, context):
+            print(json.dumps(dict(event, ResponseURL='...')))
+            cluster = os.environ['CLUSTER']
+            snsTopicArn = event['Records'][0]['Sns']['TopicArn']
+            lifecycle_event = json.loads(event['Records'][0]['Sns']['Message'])
+            instance_id = lifecycle_event.get('EC2InstanceId')
+            if not instance_id:
+              print('Got event without EC2InstanceId: %s', json.dumps(dict(event, ResponseURL='...')))
+              return
+
+            instance_arn = container_instance_arn(cluster, instance_id)
+            print('Instance %s has container instance ARN %s' % (lifecycle_event['EC2InstanceId'], instance_arn))
+
+            if not instance_arn:
+              return
+
+            task_arns = container_instance_task_arns(cluster, instance_arn)
+
+            if task_arns:
+              print('Instance ARN %s has task ARNs %s' % (instance_arn, ', '.join(task_arns)))
+
+            while has_tasks(cluster, instance_arn, task_arns):
+              time.sleep(10)
+
+            try:
+              print('Terminating instance %s' % instance_id)
+              autoscaling.complete_lifecycle_action(
+                  LifecycleActionResult='CONTINUE',
+                  **pick(lifecycle_event, 'LifecycleHookName', 'LifecycleActionToken', 'AutoScalingGroupName'))
+            except Exception as e:
+              # Lifecycle action may have already completed.
+              print(str(e))
+
+
+          def container_instance_arn(cluster, instance_id):
+            """Turn an instance ID into a container instance ARN."""
+            arns = ecs.list_container_instances(cluster=cluster, filter='ec2InstanceId==' + instance_id)['containerInstanceArns']
+            if not arns:
+              return None
+            return arns[0]
+
+          def container_instance_task_arns(cluster, instance_arn):
+            """Fetch tasks for a container instance ARN."""
+            arns = ecs.list_tasks(cluster=cluster, containerInstance=instance_arn)['taskArns']
+            return arns
+
+          def has_tasks(cluster, instance_arn, task_arns):
+            """Return True if the instance is running tasks for the given cluster."""
+            instances = ecs.describe_container_instances(cluster=cluster, containerInstances=[instance_arn])['containerInstances']
+            if not instances:
+              return False
+            instance = instances[0]
+
+            if instance['status'] == 'ACTIVE':
+              # Start draining, then try again later
+              set_container_instance_to_draining(cluster, instance_arn)
+              return True
+
+            task_count = None
+
+            if task_arns:
+              # Fetch details for tasks running on the container instance
+              tasks = ecs.describe_tasks(cluster=cluster, tasks=task_arns)['tasks']
+              if tasks:
+                # Consider any non-stopped tasks as running
+                task_count = sum(task['lastStatus'] != 'STOPPED' for task in tasks) + instance['pendingTasksCount']
+
+            if not task_count:
+              # Fallback to instance task counts if detailed task information is unavailable
+              task_count = instance['runningTasksCount'] + instance['pendingTasksCount']
+
+            print('Instance %s has %s tasks' % (instance_arn, task_count))
+
+            return task_count > 0
+
+          def set_container_instance_to_draining(cluster, instance_arn):
+            ecs.update_container_instances_state(
+                cluster=cluster,
+                containerInstances=[instance_arn], status='DRAINING')
+
+
+          def pick(dct, *keys):
+            """Pick a subset of a dict."""
+            return {k: v for k, v in dct.items() if k in keys}
+      Role:
+        Fn::GetAtt:
+          - DevComputeStackGoLangMicroAsgAutoscalingGroupDrainECSHookFunctionServiceRole3E31344B
+          - Arn
+      Environment:
+        Variables:
+          CLUSTER:
+            Ref: DevComputeStackEcsClusterD24F6909
+      Handler: index.lambda_handler
+      Runtime: python3.9
+      Tags:
+        - Key: Name
+          Value: ComputeStack/DevComputeStack/GoLangMicroAsgAutoscalingGroup
+      Timeout: 310
+    DependsOn:
+      - DevComputeStackGoLangMicroAsgAutoscalingGroupDrainECSHookFunctionServiceRoleDefaultPolicyB5E96AED
+      - DevComputeStackGoLangMicroAsgAutoscalingGroupDrainECSHookFunctionServiceRole3E31344B
+    Metadata:
+      aws:cdk:path: ComputeStack/DevComputeStack/GoLangMicroAsgAutoscalingGroup/DrainECSHook/Function/Resource
+  DevComputeStackGoLangMicroAsgAutoscalingGroupDrainECSHookFunctionAllowInvokeComputeStackDevComputeStackGoLangMicroAsgAutoscalingGroupLifecycleHookDrainHookTopic00276F86EE2C495C:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName:
+        Fn::GetAtt:
+          - DevComputeStackGoLangMicroAsgAutoscalingGroupDrainECSHookFunctionE2F2F8FE
+          - Arn
+      Principal: sns.amazonaws.com
+      SourceArn:
+        Ref: DevComputeStackGoLangMicroAsgAutoscalingGroupLifecycleHookDrainHookTopicEE771A4D
+    Metadata:
+      aws:cdk:path: ComputeStack/DevComputeStack/GoLangMicroAsgAutoscalingGroup/DrainECSHook/Function/AllowInvoke:ComputeStackDevComputeStackGoLangMicroAsgAutoscalingGroupLifecycleHookDrainHookTopic00276F86
+  DevComputeStackGoLangMicroAsgAutoscalingGroupDrainECSHookFunctionTopicA5FC013C:
+    Type: AWS::SNS::Subscription
+    Properties:
+      Protocol: lambda
+      TopicArn:
+        Ref: DevComputeStackGoLangMicroAsgAutoscalingGroupLifecycleHookDrainHookTopicEE771A4D
+      Endpoint:
+        Fn::GetAtt:
+          - DevComputeStackGoLangMicroAsgAutoscalingGroupDrainECSHookFunctionE2F2F8FE
+          - Arn
+    Metadata:
+      aws:cdk:path: ComputeStack/DevComputeStack/GoLangMicroAsgAutoscalingGroup/DrainECSHook/Function/Topic/Resource
+  DevComputeStackGoLangMicroAsgAutoscalingGroupLifecycleHookDrainHookTopicEE771A4D:
+    Type: AWS::SNS::Topic
+    Properties:
+      Tags:
+        - Key: Name
+          Value: ComputeStack/DevComputeStack/GoLangMicroAsgAutoscalingGroup
+    Metadata:
+      aws:cdk:path: ComputeStack/DevComputeStack/GoLangMicroAsgAutoscalingGroup/LifecycleHookDrainHook/Topic/Resource
+  DevComputeStackGoLangMicroAsgAutoscalingGroupLifecycleHookDrainHookRole2AD1B4C7:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action: sts:AssumeRole
+            Effect: Allow
+            Principal:
+              Service: autoscaling.amazonaws.com
+        Version: "2012-10-17"
+      Tags:
+        - Key: Name
+          Value: ComputeStack/DevComputeStack/GoLangMicroAsgAutoscalingGroup
+    Metadata:
+      aws:cdk:path: ComputeStack/DevComputeStack/GoLangMicroAsgAutoscalingGroup/LifecycleHookDrainHook/Role/Resource
+  DevComputeStackGoLangMicroAsgAutoscalingGroupLifecycleHookDrainHookRoleDefaultPolicy3D2F1BDE:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyDocument:
+        Statement:
+          - Action: sns:Publish
+            Effect: Allow
+            Resource:
+              Ref: DevComputeStackGoLangMicroAsgAutoscalingGroupLifecycleHookDrainHookTopicEE771A4D
+        Version: "2012-10-17"
+      PolicyName: DevComputeStackGoLangMicroAsgAutoscalingGroupLifecycleHookDrainHookRoleDefaultPolicy3D2F1BDE
+      Roles:
+        - Ref: DevComputeStackGoLangMicroAsgAutoscalingGroupLifecycleHookDrainHookRole2AD1B4C7
+    Metadata:
+      aws:cdk:path: ComputeStack/DevComputeStack/GoLangMicroAsgAutoscalingGroup/LifecycleHookDrainHook/Role/DefaultPolicy/Resource
+  DevComputeStackGoLangMicroAsgAutoscalingGroupLifecycleHookDrainHook47891215:
+    Type: AWS::AutoScaling::LifecycleHook
+    Properties:
+      AutoScalingGroupName:
+        Ref: DevComputeStackGoLangMicroAsgAutoscalingGroupASGAFCB1BA4
+      LifecycleTransition: autoscaling:EC2_INSTANCE_TERMINATING
+      DefaultResult: CONTINUE
+      HeartbeatTimeout: 300
+      NotificationTargetARN:
+        Ref: DevComputeStackGoLangMicroAsgAutoscalingGroupLifecycleHookDrainHookTopicEE771A4D
+      RoleARN:
+        Fn::GetAtt:
+          - DevComputeStackGoLangMicroAsgAutoscalingGroupLifecycleHookDrainHookRole2AD1B4C7
+          - Arn
+    DependsOn:
+      - DevComputeStackGoLangMicroAsgAutoscalingGroupLifecycleHookDrainHookRoleDefaultPolicy3D2F1BDE
+      - DevComputeStackGoLangMicroAsgAutoscalingGroupLifecycleHookDrainHookRole2AD1B4C7
+    Metadata:
+      aws:cdk:path: ComputeStack/DevComputeStack/GoLangMicroAsgAutoscalingGroup/LifecycleHookDrainHook/Resource
+  DevComputeStackGoLangMicroAsgCapacityProviderAsgCapacityProvider7C4C1901:
+    Type: AWS::ECS::CapacityProvider
+    Properties:
+      AutoScalingGroupProvider:
+        AutoScalingGroupArn:
+          Ref: DevComputeStackGoLangMicroAsgAutoscalingGroupASGAFCB1BA4
+        ManagedScaling:
+          Status: ENABLED
+          TargetCapacity: 100
+        ManagedTerminationProtection: DISABLED
+      Name: GoLangMicroAsgCapacityProvider
+    Metadata:
+      aws:cdk:path: ComputeStack/DevComputeStack/GoLangMicroAsgCapacityProviderAsgCapacityProvider/GoLangMicroAsgCapacityProviderAsgCapacityProvider
+  DevComputeStackIamRoleGoLangSmallAsg7D4E5783:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action: sts:AssumeRole
+            Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+        Version: "2012-10-17"
+      Description: Iam role for autoscaling group GoLangSmallAsg
+      Policies:
+        - PolicyDocument:
+            Statement:
+              - Action:
+                  - ec2:AttachVolume
+                  - ec2:CreateTags
+                  - ec2:CreateVolume
+                  - ec2:DeleteVolume
+                  - ec2:DescribeAvailabilityZones
+                  - ec2:DescribeInstances
+                  - ec2:DescribeTags
+                  - ec2:DescribeVolumeAttribute
+                  - ec2:DescribeVolumeStatus
+                  - ec2:DescribeVolumes
+                  - ec2:DetachVolume
+                  - ec2:ModifyVolumeAttribute
+                Effect: Allow
+                Resource: "*"
+            Version: "2012-10-17"
+          PolicyName: Ec2VolumeAccess
+      RoleName: GoLangSmallAsgInstanceProfileRole
+    Metadata:
+      aws:cdk:path: ComputeStack/DevComputeStack/IamRoleGoLangSmallAsg/Resource
+  DevComputeStackIamRoleGoLangSmallAsgDefaultPolicyC73258EA:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyDocument:
+        Statement:
+          - Action:
+              - ecs:DeregisterContainerInstance
+              - ecs:RegisterContainerInstance
+              - ecs:Submit*
+            Effect: Allow
+            Resource:
+              Fn::GetAtt:
+                - DevComputeStackEcsClusterD24F6909
+                - Arn
+          - Action:
+              - ecs:Poll
+              - ecs:StartTelemetrySession
+            Condition:
+              ArnEquals:
+                ecs:cluster:
+                  Fn::GetAtt:
+                    - DevComputeStackEcsClusterD24F6909
+                    - Arn
+            Effect: Allow
+            Resource: "*"
+          - Action:
+              - ecr:GetAuthorizationToken
+              - ecs:DiscoverPollEndpoint
+              - logs:CreateLogStream
+              - logs:PutLogEvents
+            Effect: Allow
+            Resource: "*"
+        Version: "2012-10-17"
+      PolicyName: DevComputeStackIamRoleGoLangSmallAsgDefaultPolicyC73258EA
+      Roles:
+        - Ref: DevComputeStackIamRoleGoLangSmallAsg7D4E5783
+    Metadata:
+      aws:cdk:path: ComputeStack/DevComputeStack/IamRoleGoLangSmallAsg/DefaultPolicy/Resource
+  DevComputeStackGoLangSmallAsgSecurityGroup11A39E00:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: SecurityGroup for GoLangSmallAsg
+      GroupName: GoLangSmallAsgSecurityGroup
+      SecurityGroupEgress:
+        - CidrIp: 0.0.0.0/0
+          Description: Allow all outbound traffic by default
+          IpProtocol: "-1"
+      VpcId: vpc-535bd136
+    Metadata:
+      aws:cdk:path: ComputeStack/DevComputeStack/GoLangSmallAsgSecurityGroup/Resource
+  DevComputeStackGoLangSmallAsgAutoscalingGroupInstanceProfile5486CC61:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+        - Ref: DevComputeStackIamRoleGoLangSmallAsg7D4E5783
+    Metadata:
+      aws:cdk:path: ComputeStack/DevComputeStack/GoLangSmallAsgAutoscalingGroup/InstanceProfile
+  DevComputeStackGoLangSmallAsgAutoscalingGroupLaunchConfig3363B76A:
+    Type: AWS::AutoScaling::LaunchConfiguration
+    Properties:
+      ImageId:
+        Ref: SsmParameterValueawsserviceamiamazonlinuxlatestamzn2amikernel510hvmx8664gp2C96584B6F00A464EAD1953AFF4B05118Parameter
+      InstanceType: t2.small
+      IamInstanceProfile:
+        Ref: DevComputeStackGoLangSmallAsgAutoscalingGroupInstanceProfile5486CC61
+      KeyName: breezethru-demo-key-pair
+      SecurityGroups:
+        - Fn::GetAtt:
+            - DevComputeStackGoLangSmallAsgSecurityGroup11A39E00
+            - GroupId
+      UserData:
+        Fn::Base64:
+          Fn::Join:
+            - ""
+            - - |-
+                #!/bin/bash
+                sudo yum -y update
+                sudo yum -y install wget
+                sudo touch /etc/ecs/ecs.config
+                sudo amazon-linux-extras disable docker
+                sudo amazon-linux-extras install -y ecs
+                echo "ECS_CLUSTER=
+              - Ref: DevComputeStackEcsClusterD24F6909
+              - |-
+                " >>  /etc/ecs/ecs.config
+                echo "ECS_AWSVPC_BLOCK_IMDS=true" >> /etc/ecs/ecs.config
+                sudo systemctl enable --now --no-block ecs.service
+                docker plugin install rexray/ebs REXRAY_PREEMPT=true EBS_REGION=
+              - Ref: AWS::Region
+              - |-2
+                 --grant-all-permissions
+                echo ECS_CLUSTER=
+              - Ref: DevComputeStackEcsClusterD24F6909
+              - " >> /etc/ecs/ecs.config"
+    DependsOn:
+      - DevComputeStackIamRoleGoLangSmallAsgDefaultPolicyC73258EA
+      - DevComputeStackIamRoleGoLangSmallAsg7D4E5783
+    Metadata:
+      aws:cdk:path: ComputeStack/DevComputeStack/GoLangSmallAsgAutoscalingGroup/LaunchConfig
+  DevComputeStackGoLangSmallAsgAutoscalingGroupASG39BBBE1C:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      MaxSize: "2"
+      MinSize: "0"
+      AutoScalingGroupName: GoLangSmallAsg
+      LaunchConfigurationName:
+        Ref: DevComputeStackGoLangSmallAsgAutoscalingGroupLaunchConfig3363B76A
+      Tags:
+        - Key: Name
+          PropagateAtLaunch: true
+          Value: ComputeStack/DevComputeStack/GoLangSmallAsgAutoscalingGroup
+      VPCZoneIdentifier:
+        - subnet-634fd606
+        - subnet-d428dfff
+        - subnet-f3c77284
+        - subnet-d491468d
+        - subnet-a5f9649f
+        - subnet-e52e94e9
+    UpdatePolicy:
+      AutoScalingScheduledAction:
+        IgnoreUnmodifiedGroupSizeProperties: true
+    Metadata:
+      aws:cdk:path: ComputeStack/DevComputeStack/GoLangSmallAsgAutoscalingGroup/ASG
+  DevComputeStackGoLangSmallAsgAutoscalingGroupDrainECSHookFunctionServiceRole10E17DE0:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action: sts:AssumeRole
+            Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+        Version: "2012-10-17"
+      ManagedPolicyArns:
+        - Fn::Join:
+            - ""
+            - - "arn:"
+              - Ref: AWS::Partition
+              - :iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Tags:
+        - Key: Name
+          Value: ComputeStack/DevComputeStack/GoLangSmallAsgAutoscalingGroup
+    Metadata:
+      aws:cdk:path: ComputeStack/DevComputeStack/GoLangSmallAsgAutoscalingGroup/DrainECSHook/Function/ServiceRole/Resource
+  DevComputeStackGoLangSmallAsgAutoscalingGroupDrainECSHookFunctionServiceRoleDefaultPolicy0FD33244:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyDocument:
+        Statement:
+          - Action:
+              - ec2:DescribeHosts
+              - ec2:DescribeInstanceAttribute
+              - ec2:DescribeInstanceStatus
+              - ec2:DescribeInstances
+            Effect: Allow
+            Resource: "*"
+          - Action: autoscaling:CompleteLifecycleAction
+            Effect: Allow
+            Resource:
+              Fn::Join:
+                - ""
+                - - arn:aws:autoscaling:us-east-1:305251478828:autoScalingGroup:*:autoScalingGroupName/
+                  - Ref: DevComputeStackGoLangSmallAsgAutoscalingGroupASG39BBBE1C
+          - Action:
+              - ecs:DescribeContainerInstances
+              - ecs:DescribeTasks
+              - ecs:ListTasks
+              - ecs:UpdateContainerInstancesState
+            Condition:
+              ArnEquals:
+                ecs:cluster:
+                  Fn::GetAtt:
+                    - DevComputeStackEcsClusterD24F6909
+                    - Arn
+            Effect: Allow
+            Resource: "*"
+          - Action:
+              - ecs:ListContainerInstances
+              - ecs:SubmitContainerStateChange
+              - ecs:SubmitTaskStateChange
+            Effect: Allow
+            Resource:
+              Fn::GetAtt:
+                - DevComputeStackEcsClusterD24F6909
+                - Arn
+        Version: "2012-10-17"
+      PolicyName: DevComputeStackGoLangSmallAsgAutoscalingGroupDrainECSHookFunctionServiceRoleDefaultPolicy0FD33244
+      Roles:
+        - Ref: DevComputeStackGoLangSmallAsgAutoscalingGroupDrainECSHookFunctionServiceRole10E17DE0
+    Metadata:
+      aws:cdk:path: ComputeStack/DevComputeStack/GoLangSmallAsgAutoscalingGroup/DrainECSHook/Function/ServiceRole/DefaultPolicy/Resource
+  DevComputeStackGoLangSmallAsgAutoscalingGroupDrainECSHookFunctionBDD328CA:
+    Type: AWS::Lambda::Function
+    Properties:
+      Code:
+        ZipFile: |
+          import boto3, json, os, time
+
+          ecs = boto3.client('ecs')
+          autoscaling = boto3.client('autoscaling')
+
+
+          def lambda_handler(event, context):
+            print(json.dumps(dict(event, ResponseURL='...')))
+            cluster = os.environ['CLUSTER']
+            snsTopicArn = event['Records'][0]['Sns']['TopicArn']
+            lifecycle_event = json.loads(event['Records'][0]['Sns']['Message'])
+            instance_id = lifecycle_event.get('EC2InstanceId')
+            if not instance_id:
+              print('Got event without EC2InstanceId: %s', json.dumps(dict(event, ResponseURL='...')))
+              return
+
+            instance_arn = container_instance_arn(cluster, instance_id)
+            print('Instance %s has container instance ARN %s' % (lifecycle_event['EC2InstanceId'], instance_arn))
+
+            if not instance_arn:
+              return
+
+            task_arns = container_instance_task_arns(cluster, instance_arn)
+
+            if task_arns:
+              print('Instance ARN %s has task ARNs %s' % (instance_arn, ', '.join(task_arns)))
+
+            while has_tasks(cluster, instance_arn, task_arns):
+              time.sleep(10)
+
+            try:
+              print('Terminating instance %s' % instance_id)
+              autoscaling.complete_lifecycle_action(
+                  LifecycleActionResult='CONTINUE',
+                  **pick(lifecycle_event, 'LifecycleHookName', 'LifecycleActionToken', 'AutoScalingGroupName'))
+            except Exception as e:
+              # Lifecycle action may have already completed.
+              print(str(e))
+
+
+          def container_instance_arn(cluster, instance_id):
+            """Turn an instance ID into a container instance ARN."""
+            arns = ecs.list_container_instances(cluster=cluster, filter='ec2InstanceId==' + instance_id)['containerInstanceArns']
+            if not arns:
+              return None
+            return arns[0]
+
+          def container_instance_task_arns(cluster, instance_arn):
+            """Fetch tasks for a container instance ARN."""
+            arns = ecs.list_tasks(cluster=cluster, containerInstance=instance_arn)['taskArns']
+            return arns
+
+          def has_tasks(cluster, instance_arn, task_arns):
+            """Return True if the instance is running tasks for the given cluster."""
+            instances = ecs.describe_container_instances(cluster=cluster, containerInstances=[instance_arn])['containerInstances']
+            if not instances:
+              return False
+            instance = instances[0]
+
+            if instance['status'] == 'ACTIVE':
+              # Start draining, then try again later
+              set_container_instance_to_draining(cluster, instance_arn)
+              return True
+
+            task_count = None
+
+            if task_arns:
+              # Fetch details for tasks running on the container instance
+              tasks = ecs.describe_tasks(cluster=cluster, tasks=task_arns)['tasks']
+              if tasks:
+                # Consider any non-stopped tasks as running
+                task_count = sum(task['lastStatus'] != 'STOPPED' for task in tasks) + instance['pendingTasksCount']
+
+            if not task_count:
+              # Fallback to instance task counts if detailed task information is unavailable
+              task_count = instance['runningTasksCount'] + instance['pendingTasksCount']
+
+            print('Instance %s has %s tasks' % (instance_arn, task_count))
+
+            return task_count > 0
+
+          def set_container_instance_to_draining(cluster, instance_arn):
+            ecs.update_container_instances_state(
+                cluster=cluster,
+                containerInstances=[instance_arn], status='DRAINING')
+
+
+          def pick(dct, *keys):
+            """Pick a subset of a dict."""
+            return {k: v for k, v in dct.items() if k in keys}
+      Role:
+        Fn::GetAtt:
+          - DevComputeStackGoLangSmallAsgAutoscalingGroupDrainECSHookFunctionServiceRole10E17DE0
+          - Arn
+      Environment:
+        Variables:
+          CLUSTER:
+            Ref: DevComputeStackEcsClusterD24F6909
+      Handler: index.lambda_handler
+      Runtime: python3.9
+      Tags:
+        - Key: Name
+          Value: ComputeStack/DevComputeStack/GoLangSmallAsgAutoscalingGroup
+      Timeout: 310
+    DependsOn:
+      - DevComputeStackGoLangSmallAsgAutoscalingGroupDrainECSHookFunctionServiceRoleDefaultPolicy0FD33244
+      - DevComputeStackGoLangSmallAsgAutoscalingGroupDrainECSHookFunctionServiceRole10E17DE0
+    Metadata:
+      aws:cdk:path: ComputeStack/DevComputeStack/GoLangSmallAsgAutoscalingGroup/DrainECSHook/Function/Resource
+  DevComputeStackGoLangSmallAsgAutoscalingGroupDrainECSHookFunctionAllowInvokeComputeStackDevComputeStackGoLangSmallAsgAutoscalingGroupLifecycleHookDrainHookTopic0B88975191691534:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName:
+        Fn::GetAtt:
+          - DevComputeStackGoLangSmallAsgAutoscalingGroupDrainECSHookFunctionBDD328CA
+          - Arn
+      Principal: sns.amazonaws.com
+      SourceArn:
+        Ref: DevComputeStackGoLangSmallAsgAutoscalingGroupLifecycleHookDrainHookTopic88688242
+    Metadata:
+      aws:cdk:path: ComputeStack/DevComputeStack/GoLangSmallAsgAutoscalingGroup/DrainECSHook/Function/AllowInvoke:ComputeStackDevComputeStackGoLangSmallAsgAutoscalingGroupLifecycleHookDrainHookTopic0B889751
+  DevComputeStackGoLangSmallAsgAutoscalingGroupDrainECSHookFunctionTopicC9F544B3:
+    Type: AWS::SNS::Subscription
+    Properties:
+      Protocol: lambda
+      TopicArn:
+        Ref: DevComputeStackGoLangSmallAsgAutoscalingGroupLifecycleHookDrainHookTopic88688242
+      Endpoint:
+        Fn::GetAtt:
+          - DevComputeStackGoLangSmallAsgAutoscalingGroupDrainECSHookFunctionBDD328CA
+          - Arn
+    Metadata:
+      aws:cdk:path: ComputeStack/DevComputeStack/GoLangSmallAsgAutoscalingGroup/DrainECSHook/Function/Topic/Resource
+  DevComputeStackGoLangSmallAsgAutoscalingGroupLifecycleHookDrainHookTopic88688242:
+    Type: AWS::SNS::Topic
+    Properties:
+      Tags:
+        - Key: Name
+          Value: ComputeStack/DevComputeStack/GoLangSmallAsgAutoscalingGroup
+    Metadata:
+      aws:cdk:path: ComputeStack/DevComputeStack/GoLangSmallAsgAutoscalingGroup/LifecycleHookDrainHook/Topic/Resource
+  DevComputeStackGoLangSmallAsgAutoscalingGroupLifecycleHookDrainHookRole5AD2FD99:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action: sts:AssumeRole
+            Effect: Allow
+            Principal:
+              Service: autoscaling.amazonaws.com
+        Version: "2012-10-17"
+      Tags:
+        - Key: Name
+          Value: ComputeStack/DevComputeStack/GoLangSmallAsgAutoscalingGroup
+    Metadata:
+      aws:cdk:path: ComputeStack/DevComputeStack/GoLangSmallAsgAutoscalingGroup/LifecycleHookDrainHook/Role/Resource
+  DevComputeStackGoLangSmallAsgAutoscalingGroupLifecycleHookDrainHookRoleDefaultPolicyFE336600:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyDocument:
+        Statement:
+          - Action: sns:Publish
+            Effect: Allow
+            Resource:
+              Ref: DevComputeStackGoLangSmallAsgAutoscalingGroupLifecycleHookDrainHookTopic88688242
+        Version: "2012-10-17"
+      PolicyName: DevComputeStackGoLangSmallAsgAutoscalingGroupLifecycleHookDrainHookRoleDefaultPolicyFE336600
+      Roles:
+        - Ref: DevComputeStackGoLangSmallAsgAutoscalingGroupLifecycleHookDrainHookRole5AD2FD99
+    Metadata:
+      aws:cdk:path: ComputeStack/DevComputeStack/GoLangSmallAsgAutoscalingGroup/LifecycleHookDrainHook/Role/DefaultPolicy/Resource
+  DevComputeStackGoLangSmallAsgAutoscalingGroupLifecycleHookDrainHook0F31CEE5:
+    Type: AWS::AutoScaling::LifecycleHook
+    Properties:
+      AutoScalingGroupName:
+        Ref: DevComputeStackGoLangSmallAsgAutoscalingGroupASG39BBBE1C
+      LifecycleTransition: autoscaling:EC2_INSTANCE_TERMINATING
+      DefaultResult: CONTINUE
+      HeartbeatTimeout: 300
+      NotificationTargetARN:
+        Ref: DevComputeStackGoLangSmallAsgAutoscalingGroupLifecycleHookDrainHookTopic88688242
+      RoleARN:
+        Fn::GetAtt:
+          - DevComputeStackGoLangSmallAsgAutoscalingGroupLifecycleHookDrainHookRole5AD2FD99
+          - Arn
+    DependsOn:
+      - DevComputeStackGoLangSmallAsgAutoscalingGroupLifecycleHookDrainHookRoleDefaultPolicyFE336600
+      - DevComputeStackGoLangSmallAsgAutoscalingGroupLifecycleHookDrainHookRole5AD2FD99
+    Metadata:
+      aws:cdk:path: ComputeStack/DevComputeStack/GoLangSmallAsgAutoscalingGroup/LifecycleHookDrainHook/Resource
+  DevComputeStackGoLangSmallAsgCapacityProviderAsgCapacityProviderE3D06552:
+    Type: AWS::ECS::CapacityProvider
+    Properties:
+      AutoScalingGroupProvider:
+        AutoScalingGroupArn:
+          Ref: DevComputeStackGoLangSmallAsgAutoscalingGroupASG39BBBE1C
+        ManagedScaling:
+          Status: ENABLED
+          TargetCapacity: 100
+        ManagedTerminationProtection: DISABLED
+      Name: GoLangSmallAsgCapacityProvider
+    Metadata:
+      aws:cdk:path: ComputeStack/DevComputeStack/GoLangSmallAsgCapacityProviderAsgCapacityProvider/GoLangSmallAsgCapacityProviderAsgCapacityProvider
+  DevComputeStackClusterAlbSecurityGroupC3EA1FAC:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for ClusterAlb
+      GroupName: ClusterAlbSecurityGroup
+      SecurityGroupEgress:
+        - CidrIp: 0.0.0.0/0
+          Description: Allow all outbound traffic by default
+          IpProtocol: "-1"
+      SecurityGroupIngress:
+        - CidrIp: 0.0.0.0/0
+          Description: Default HTTPS Port
+          FromPort: 443
+          IpProtocol: tcp
+          ToPort: 443
+        - CidrIp: 0.0.0.0/0
+          Description: Default HTTP Port
+          FromPort: 80
+          IpProtocol: tcp
+          ToPort: 80
+      VpcId: vpc-535bd136
+    Metadata:
+      aws:cdk:path: ComputeStack/DevComputeStack/ClusterAlbSecurityGroup/Resource
+  DevComputeStackLoadBalanerSetup44261FAE:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      IpAddressType: ipv4
+      LoadBalancerAttributes:
+        - Key: deletion_protection.enabled
+          Value: "false"
+        - Key: idle_timeout.timeout_seconds
+          Value: "120"
+      Name: ClusterAlb
+      Scheme: internet-facing
+      SecurityGroups:
+        - Fn::GetAtt:
+            - DevComputeStackClusterAlbSecurityGroupC3EA1FAC
+            - GroupId
+      Subnets:
+        - subnet-634fd606
+        - subnet-d428dfff
+        - subnet-f3c77284
+        - subnet-d491468d
+        - subnet-a5f9649f
+        - subnet-e52e94e9
+      Type: application
+    Metadata:
+      aws:cdk:path: ComputeStack/DevComputeStack/LoadBalanerSetup/Resource
+  DevComputeStackDefaultTargetGroup40902332:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: ClusterAlbDefaultTargetGroup
+      Port: 8080
+      Protocol: HTTP
+      TargetGroupAttributes:
+        - Key: stickiness.enabled
+          Value: "false"
+      TargetType: instance
+      VpcId: vpc-535bd136
+    Metadata:
+      aws:cdk:path: ComputeStack/DevComputeStack/DefaultTargetGroup/Resource
+  DevComputeStackLoadbalancerHttpsListener13B34CFD:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+        - TargetGroupArn:
+            Ref: DevComputeStackDefaultTargetGroup40902332
+          Type: forward
+      LoadBalancerArn:
+        Ref: DevComputeStackLoadBalanerSetup44261FAE
+      Certificates:
+        - CertificateArn: arn:aws:acm:us-east-1:305251478828:certificate/3f5f3c4f-5e6c-40de-a588-41cca514bbeb
+      Port: 443
+      Protocol: HTTPS
+    Metadata:
+      aws:cdk:path: ComputeStack/DevComputeStack/LoadbalancerHttpsListener/Resource
+  DevComputeStackLoadbalancerHttpListener5C2FCFBB:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+        - RedirectConfig:
+            Host: "#{host}"
+            Path: /#{path}
+            Port: "443"
+            Protocol: HTTPS
+            Query: "#{query}"
+            StatusCode: HTTP_301
+          Type: redirect
+      LoadBalancerArn:
+        Ref: DevComputeStackLoadBalanerSetup44261FAE
+      Port: 80
+      Protocol: HTTP
+    Metadata:
+      aws:cdk:path: ComputeStack/DevComputeStack/LoadbalancerHttpListener/Resource
+  DevComputeStackCloudMapNamespace332BA237:
+    Type: AWS::ServiceDiscovery::PrivateDnsNamespace
+    Properties:
+      Name: brz.demo
+      Vpc: vpc-535bd136
+      Description: service discovery namespace
+    Metadata:
+      aws:cdk:path: ComputeStack/DevComputeStack/CloudMapNamespace/Resource
+  CDKMetadata:
+    Type: AWS::CDK::Metadata
+    Properties:
+      Analytics: v2:deflate64:H4sIAAAAAAAA/21SS0/DMAz+LdyzIBBC4jiGeEgTmjbuyHO9YpYmVZwUpqr/HbfboANO8few5Ucu7fWFvTiDD5lgsZ04Xtt2lQC3RqnXllBsO3NZEkUz2/i/4QxqQE67RQwNFxSnIgEZEgcvZirlb31I/cV1hqGy7TI46uXhXQTHuOvhT/TkJYFH0rwNO+oM4aW2S5ijVnuIIde97YToDOQUBMGxL207VbDag2//HLLHt1nwGy5zHFrv6T/WOW8Id+joMYTtkDgmOuOgWhdg23stdywyjhcUKxZR1BnxuthVXgtGro+GE/wSasaeHQKd1YEkRhegWIPTNWhfjY4/rWvdz9D1XLXbQdvv+QSPfC8QS0rf84/huBrrff2h0iHWxik2jFSwYGgo7my7iNxAojsvz1CR6GmHK/5Dd51ZkoQcDw6Iqhy+01HoTBn0R97Yq3PdfP48h6q4vjp7F+ZJzD5xRXa5f78A5BAdzrwCAAA=
+    Metadata:
+      aws:cdk:path: ComputeStack/CDKMetadata/Default
+Parameters:
+  SsmParameterValueawsserviceamiamazonlinuxlatestamzn2amikernel510hvmx8664gp2C96584B6F00A464EAD1953AFF4B05118Parameter:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ami-amazon-linux-latest/amzn2-ami-kernel-5.10-hvm-x86_64-gp2
+  BootstrapVersion:
+    Type: AWS::SSM::Parameter::Value<String>
+    Default: /cdk-bootstrap/hnb659fds/version
+    Description: Version of the CDK Bootstrap resources in this environment, automatically retrieved from SSM Parameter Store. [cdk:skip]
+Rules:
+  CheckBootstrapVersion:
+    Assertions:
+      - Assert:
+          Fn::Not:
+            - Fn::Contains:
+                - - "1"
+                  - "2"
+                  - "3"
+                  - "4"
+                  - "5"
+                - Ref: BootstrapVersion
+        AssertDescription: CDK bootstrap stack version 6 required. Please run 'cdk bootstrap' with a recent version of the CDK CLI.
+

@@ -1,7 +1,7 @@
 package main
 
 import (
-	clusterConstruct "cdk-consrtuct/compute-construct"
+	clusterConstruct "github.com/Breezeware-Technologies/breezeware-aws-cdk-patterns/container_patterns"
 
 	"github.com/aws/aws-cdk-go/awscdk/v2"
 	"github.com/aws/aws-cdk-go/awscdk/v2/awsec2"
@@ -18,30 +18,28 @@ type CdkConsrtuctStackProps struct {
 }
 
 func ComputeStack(scope constructs.Construct, id string, props *CdkConsrtuctStackProps) awscdk.Stack {
+
 	var sprops awscdk.StackProps
 	if props != nil {
 		sprops = props.StackProps
 	}
 	vpcId := "vpc-535bd136"
 	stack := awscdk.NewStack(scope, &id, &sprops)
-	vpc := clusterConstruct.LookupVpc(stack, jsii.String("LookUpVpc"), &clusterConstruct.VpcProps{VpcId: vpcId})
 	clusterConstruct.NewContainerCompute(stack, jsii.String("DevComputeStack"), &clusterConstruct.ContainerComputeProps{
+		VpcId: &vpcId,
 		Cluster: clusterConstruct.ContainerComputeClusterProps{
 			Name:                             "ClusterGoLang",
 			ContainerInsights:                false,
 			IsAsgCapacityProviderEnabled:     true,
 			IsFargateCapacityProviderEnabled: true,
-			Vpc:                              vpc,
 		},
 		LoadBalancer: clusterConstruct.ContainerComputeLoadBalancerProps{
 			Name:                   "ClusterAlb",
 			ListenerCertificateArn: "arn:aws:acm:us-east-1:305251478828:certificate/3f5f3c4f-5e6c-40de-a588-41cca514bbeb",
-			Vpc:                    vpc,
 		},
 		CloudmapNamespace: clusterConstruct.ContainerComputeCloudmapNamespaceProps{
 			Name:        "brz.demo",
 			Description: "service discovery namespace",
-			Vpc:         vpc,
 		},
 		AsgCapacityProviders: []clusterConstruct.AutoscalinGroupCapacityProviders{
 			{
@@ -50,9 +48,8 @@ func ComputeStack(scope constructs.Construct, id string, props *CdkConsrtuctStac
 					InstanceClass: awsec2.InstanceClass_BURSTABLE2,
 					InstanceSize:  awsec2.InstanceSize_MICRO,
 					MinCapacity:   0,
-					MaxCapacity:   1,
+					MaxCapacity:   2,
 					SshKeyName:    "breezethru-demo-key-pair",
-					Vpc:           vpc,
 				},
 				CapacityProvider: clusterConstruct.ContainerComputeAsgCapacityProviderProps{
 					Name: "GoLangMicroAsgCapacityProvider",
@@ -64,9 +61,8 @@ func ComputeStack(scope constructs.Construct, id string, props *CdkConsrtuctStac
 					InstanceClass: awsec2.InstanceClass_BURSTABLE2,
 					InstanceSize:  awsec2.InstanceSize_SMALL,
 					MinCapacity:   0,
-					MaxCapacity:   1,
+					MaxCapacity:   2,
 					SshKeyName:    "breezethru-demo-key-pair",
-					Vpc:           vpc,
 				},
 				CapacityProvider: clusterConstruct.ContainerComputeAsgCapacityProviderProps{
 					Name: "GoLangSmallAsgCapacityProvider",
@@ -204,7 +200,7 @@ func main() {
 		},
 	})
 
-	ComputeStack(app, "ModifiedComputeStack", &CdkConsrtuctStackProps{
+	ComputeStack(app, "ComputeStack", &CdkConsrtuctStackProps{
 		awscdk.StackProps{
 			Env: env(),
 		},

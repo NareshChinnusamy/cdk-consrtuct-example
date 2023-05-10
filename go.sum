@@ -1,9 +1,11 @@
+github.com/Breezeware-Technologies/breezeware-aws-cdk-patterns v1.0.0 h1:4Tk1AgINRkfbpiR787+a8vz1XG7yIMnFJ/Py2OegqO4=
+github.com/Breezeware-Technologies/breezeware-aws-cdk-patterns v1.0.0/go.mod h1:aNBQUxjYUrvCv8gS7kD6yyxlVb1tRL1WtMnMdPBewkc=
 github.com/Masterminds/semver/v3 v3.2.0 h1:3MEsd0SM6jqZojhjLWWeBY+Kcjy9i6MQAeY7YgDP83g=
 github.com/Masterminds/semver/v3 v3.2.0/go.mod h1:qvl/7zhW3nngYb5+80sSMF+FG2BjYrf8m9wsX0PNOMQ=
-github.com/aws/aws-cdk-go/awscdk/v2 v2.60.0 h1:In1/wOIEc6gMZKldHpEbVPu6OXoiLAYqrn2frGJvrFE=
-github.com/aws/aws-cdk-go/awscdk/v2 v2.60.0/go.mod h1:MJX3YMog3W0U/7WWTO9SDzzFT7sKCVFSyTWqek6eXIE=
-github.com/aws/constructs-go/constructs/v10 v10.1.214 h1:XEba4zzy3mEjpkl1uox7IbLNiV1iKtky5ob38gk25yQ=
-github.com/aws/constructs-go/constructs/v10 v10.1.214/go.mod h1:VEBihwbAahg1Y5bAma05g20t+OeBjLuTnWecZ8/jsSQ=
+github.com/aws/aws-cdk-go/awscdk/v2 v2.61.1 h1:5M8HQPF3aydoJstLfnlV2WXGWWXjFWiFNU6jC08aNHw=
+github.com/aws/aws-cdk-go/awscdk/v2 v2.61.1/go.mod h1:q+ex2DD7kAiA97R8wz49wL1EzTUbAm8ylh+Wr1daKOE=
+github.com/aws/constructs-go/constructs/v10 v10.1.228 h1:HuzYvkmgqNUA58to7QWyzzULUtlkYdSyGTlxgPCGGzY=
+github.com/aws/constructs-go/constructs/v10 v10.1.228/go.mod h1:VEBihwbAahg1Y5bAma05g20t+OeBjLuTnWecZ8/jsSQ=
 github.com/aws/jsii-runtime-go v1.73.0 h1:4ncTOPq5SAHI0KgkP1ZdH49hRYVE3VCOZKqtilvvbnc=
 github.com/aws/jsii-runtime-go v1.73.0/go.mod h1:Li7bq0fd6cg3hbRmYQf3l2VOF9dRwF9fLk3GgHOsHVQ=
 github.com/cdklabs/awscdk-asset-awscli-go/awscliv1/v2 v2.2.49 h1:B4SHdaXpWWDcaX1uiLY8EZBqSkNkTVn8tIWjgupFuvY=
